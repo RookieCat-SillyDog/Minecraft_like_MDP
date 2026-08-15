@@ -4,6 +4,8 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+tmp/
+.history/
 
 # 虚拟环境
 .venv/
@@ -21,4 +23,10 @@ htmlcov/
 # 操作系统文件
 .DS_Store
 Thumbs.db
+
+# MDP文档
+MDP
+
+# 练习题
+exercise
 
