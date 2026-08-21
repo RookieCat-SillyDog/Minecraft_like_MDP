@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <defs>
+    <style>
+      .title { font: 700 30px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #183B56; }
+      .subtitle { font: 15px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #647481; }
+      .panel-title { font: 700 21px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #183B56; }
+      .panel-note { font: 14px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #647481; }
+      .grid-label { font: 700 13px 'Microsoft YaHei', Arial, sans-serif; fill: #647481; }
+      .agent-label { font: 700 13px Arial, sans-serif; fill: #183B56; text-anchor: middle; dominant-baseline: middle; }
+      .state { font: 14px Consolas, 'Microsoft YaHei', monospace; fill: #263744; text-anchor: middle; dominant-baseline: middle; }
+      .action { font: 700 13px 'Microsoft YaHei', Arial, sans-serif; fill: #1F6F78; text-anchor: middle; }
+      .caption { font: 14px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #445662; }
+      .small { font: 12px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #647481; }
+    </style>
+
+    <pattern id="gridPattern" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M 64 0 L 0 0 0 64" fill="none" stroke="#AEB8BE" stroke-width="1.2"/>
+    </pattern>
+
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1F6F78"/>
+    </marker>
+
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#183B56" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="980" fill="#F6F7F2"/>
+
+  <text x="800" y="52" class="title" text-anchor="middle">Day 8 · Minecraft-like MDP 部分状态转移图</text>
+  <text x="800" y="82" class="subtitle" text-anchor="middle">在实际 5×5 Grid 上观察空间移动，并在下方核对完整状态 (row, col, wood, iron, bridge)</text>
+
+  <!-- Three panel cards -->
+  <rect x="40" y="115" width="480" height="790" rx="22" fill="#FFFFFF" stroke="#DCE3E6" filter="url(#shadow)"/>
+  <rect x="560" y="115" width="480" height="790" rx="22" fill="#FFFFFF" stroke="#DCE3E6" filter="url(#shadow)"/>
+  <rect x="1080" y="115" width="480" height="790" rx="22" fill="#FFFFFF" stroke="#DCE3E6" filter="url(#shadow)"/>
+
+  <!-- Panel A: movement branch -->
+  <circle cx="76" cy="156" r="18" fill="#DDEFF8"/>
+  <text x="76" y="162" class="panel-title" text-anchor="middle">A</text>
+  <text x="108" y="163" class="panel-title">动作分支</text>
+  <text x="108" y="187" class="panel-note">同一状态执行不同动作，位置产生不同变化</text>
+
+  <!-- Grid A background and special cells -->
+  <rect x="120" y="230" width="320" height="320" rx="4" fill="#FFFFFF"/>
+  <rect x="120" y="230" width="64" height="64" fill="#EEF1F2"/>
+  <rect x="376" y="230" width="64" height="64" fill="#DDF2E8"/>
+  <rect x="120" y="486" width="64" height="64" fill="#DDEFF8"/>
+  <rect x="376" y="486" width="64" height="64" fill="#FBE8D3"/>
+  <rect x="120" y="230" width="320" height="320" fill="url(#gridPattern)" stroke="#829099" stroke-width="1.5"/>
+  <text x="130" y="248" class="grid-label">S</text>
+  <text x="386" y="248" class="grid-label">W</text>
+  <text x="130" y="504" class="grid-label">I</text>
+  <text x="386" y="504" class="grid-label">F</text>
+
+  <!-- Agent and two one-step branches -->
+  <circle cx="152" cy="262" r="17" fill="#D9D9D9" stroke="#183B56" stroke-width="2"/>
+  <text x="152" y="263" class="agent-label">A</text>
+  <circle cx="216" cy="262" r="15" fill="none" stroke="#1F6F78" stroke-width="2" stroke-dasharray="4 3"/>
+  <circle cx="152" cy="326" r="15" fill="none" stroke="#1F6F78" stroke-width="2" stroke-dasharray="4 3"/>
+  <path d="M 172 262 L 197 262" fill="none" stroke="#1F6F78" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M 152 282 L 152 307" fill="none" stroke="#1F6F78" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="184" y="250" class="action">RIGHT</text>
+  <text x="184" y="304" class="action">DOWN</text>
+
+  <text x="280" y="584" class="small" text-anchor="middle">实线圆：当前 Agent　虚线圆：下一位置</text>
+
+  <rect x="78" y="616" width="404" height="66" rx="12" fill="#F7FAFB" stroke="#DCE3E6"/>
+  <rect x="78" y="698" width="404" height="66" rx="12" fill="#F7FAFB" stroke="#DCE3E6"/>
+  <text x="176" y="649" class="state">(0,0,0,0,0)</text>
+  <path d="M 262 649 L 320 649" fill="none" stroke="#1F6F78" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="291" y="638" class="action">RIGHT</text>
+  <text x="403" y="649" class="state">(0,1,0,0,0)</text>
+  <text x="176" y="731" class="state">(0,0,0,0,0)</text>
+  <path d="M 262 731 L 320 731" fill="none" stroke="#1F6F78" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="291" y="720" class="action">DOWN</text>
+  <text x="403" y="731" class="state">(1,0,0,0,0)</text>
+  <text x="280" y="812" class="caption" text-anchor="middle">普通移动只改变 (row, col)</text>
+
+  <!-- Panel B: resource collection -->
+  <circle cx="596" cy="156" r="18" fill="#DDF2E8"/>
+  <text x="596" y="162" class="panel-title" text-anchor="middle">B</text>
+  <text x="628" y="163" class="panel-title">资源收集</text>
+  <text x="628" y="187" class="panel-note">进入资源格时，位置和资源标志同时变化</text>
+
+  <!-- Grid B -->
+  <rect x="640" y="230" width="320" height="320" rx="4" fill="#FFFFFF"/>
+  <rect x="640" y="230" width="64" height="64" fill="#EEF1F2"/>
+  <rect x="896" y="230" width="64" height="64" fill="#DDF2E8"/>
+  <rect x="640" y="486" width="64" height="64" fill="#DDEFF8"/>
+  <rect x="896" y="486" width="64" height="64" fill="#FBE8D3"/>
+  <rect x="640" y="230" width="320" height="320" fill="url(#gridPattern)" stroke="#829099" stroke-width="1.5"/>
+  <text x="650" y="248" class="grid-label">S</text>
+  <text x="906" y="248" class="grid-label">W</text>
+  <text x="650" y="504" class="grid-label">I</text>
+  <text x="906" y="504" class="grid-label">F</text>
+
+  <!-- Iron-first then wood: top row -->
+  <circle cx="864" cy="262" r="17" fill="#56B4E9" stroke="#183B56" stroke-width="2"/>
+  <text x="864" y="263" class="agent-label">A</text>
+  <circle cx="928" cy="262" r="17" fill="#F2C94C" stroke="#183B56" stroke-width="2"/>
+  <text x="928" y="263" class="agent-label">A</text>
+  <path d="M 884 262 L 909 262" fill="none" stroke="#1F6F78" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="896" y="220" class="action">已有 iron，RIGHT</text>
+
+  <!-- Wood-first then iron: left column -->
+  <circle cx="672" cy="454" r="17" fill="#1B998B" stroke="#183B56" stroke-width="2"/>
+  <text x="672" y="455" class="agent-label">A</text>
+  <circle cx="672" cy="518" r="17" fill="#F2C94C" stroke="#183B56" stroke-width="2"/>
+  <text x="672" y="519" class="agent-label">A</text>
+  <path d="M 672 474 L 672 499" fill="none" stroke="#1F6F78" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="754" y="490" class="action">已有 wood，DOWN</text>
+
+  <text x="800" y="584" class="small" text-anchor="middle">蓝：仅有 iron　绿：仅有 wood　黄：两种资源齐全</text>
+
+  <text x="800" y="613" class="caption" text-anchor="middle">iron → wood</text>
+  <rect x="598" y="628" width="404" height="66" rx="12" fill="#F7FAFB" stroke="#DCE3E6"/>
+  <text x="696" y="661" class="state">(0,3,0,1,0)</text>
+  <path d="M 782 661 L 840 661" fill="none" stroke="#1F6F78" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="811" y="650" class="action">RIGHT</text>
+  <text x="923" y="661" class="state">(0,4,1,1,0)</text>
+
+  <text x="800" y="721" class="caption" text-anchor="middle">wood → iron</text>
+  <rect x="598" y="736" width="404" height="66" rx="12" fill="#F7FAFB" stroke="#DCE3E6"/>
+  <text x="696" y="769" class="state">(3,0,1,0,0)</text>
+  <path d="M 782 769 L 840 769" fill="none" stroke="#1F6F78" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="811" y="758" class="action">DOWN</text>
+  <text x="923" y="769" class="state">(4,0,1,1,0)</text>
+  <text x="800" y="842" class="caption" text-anchor="middle">两种收集顺序都产生合法可达状态</text>
+
+  <!-- Panel C: factory condition -->
+  <circle cx="1116" cy="156" r="18" fill="#FBE8D3"/>
+  <text x="1116" y="162" class="panel-title" text-anchor="middle">C</text>
+  <text x="1148" y="163" class="panel-title">Factory 条件</text>
+  <text x="1148" y="187" class="panel-note">相同空间移动，结果取决于资源状态</text>
+
+  <!-- Grid C -->
+  <rect x="1160" y="230" width="320" height="320" rx="4" fill="#FFFFFF"/>
+  <rect x="1160" y="230" width="64" height="64" fill="#EEF1F2"/>
+  <rect x="1416" y="230" width="64" height="64" fill="#DDF2E8"/>
+  <rect x="1160" y="486" width="64" height="64" fill="#DDEFF8"/>
+  <rect x="1416" y="486" width="64" height="64" fill="#FBE8D3"/>
+  <rect x="1160" y="230" width="320" height="320" fill="url(#gridPattern)" stroke="#829099" stroke-width="1.5"/>
+  <text x="1170" y="248" class="grid-label">S</text>
+  <text x="1426" y="248" class="grid-label">W</text>
+  <text x="1170" y="504" class="grid-label">I</text>
+  <text x="1426" y="504" class="grid-label">F</text>
+
+  <circle cx="1384" cy="518" r="17" fill="#F2C94C" stroke="#183B56" stroke-width="2"/>
+  <text x="1384" y="519" class="agent-label">A</text>
+  <circle cx="1448" cy="518" r="17" fill="#F2994A" stroke="#183B56" stroke-width="2"/>
+  <text x="1448" y="519" class="agent-label">A</text>
+  <path d="M 1404 518 L 1429 518" fill="none" stroke="#1F6F78" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1416" y="478" class="action">RIGHT</text>
+
+  <text x="1320" y="584" class="small" text-anchor="middle">进入 F 前后，Agent 的空间位置从 (4,3) 变为 (4,4)</text>
+
+  <text x="1320" y="613" class="caption" text-anchor="middle">资源不足：不终止</text>
+  <rect x="1118" y="628" width="404" height="66" rx="12" fill="#F7FAFB" stroke="#DCE3E6"/>
+  <text x="1216" y="661" class="state">(4,3,1,0,0)</text>
+  <path d="M 1302 661 L 1360 661" fill="none" stroke="#1F6F78" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="1331" y="650" class="action">RIGHT</text>
+  <text x="1443" y="661" class="state">(4,4,1,0,0)</text>
+
+  <text x="1320" y="721" class="caption" text-anchor="middle">资源齐全：bridge=1，任务终止</text>
+  <rect x="1118" y="736" width="404" height="66" rx="12" fill="#FFF8ED" stroke="#F2C48D"/>
+  <text x="1216" y="769" class="state">(4,3,1,1,0)</text>
+  <path d="M 1302 769 L 1360 769" fill="none" stroke="#D55E00" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="1331" y="758" class="action">RIGHT</text>
+  <text x="1443" y="769" class="state">(4,4,1,1,1)</text>
+  <rect x="1243" y="823" width="154" height="40" rx="20" fill="#D55E00"/>
+  <text x="1320" y="849" font-family="'Microsoft YaHei', Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">TERMINAL</text>
+
+  <!-- Footer legend -->
+  <line x1="80" y1="930" x2="1520" y2="930" stroke="#DCE3E6"/>
+  <circle cx="250" cy="955" r="9" fill="#D9D9D9" stroke="#183B56"/>
+  <text x="267" y="960" class="caption">无资源</text>
+  <circle cx="390" cy="955" r="9" fill="#1B998B" stroke="#183B56"/>
+  <text x="407" y="960" class="caption">仅 wood</text>
+  <circle cx="545" cy="955" r="9" fill="#56B4E9" stroke="#183B56"/>
+  <text x="562" y="960" class="caption">仅 iron</text>
+  <circle cx="690" cy="955" r="9" fill="#F2C94C" stroke="#183B56"/>
+  <text x="707" y="960" class="caption">资源齐全</text>
+  <circle cx="855" cy="955" r="9" fill="#F2994A" stroke="#183B56"/>
+  <text x="872" y="960" class="caption">bridge 完成</text>
+  <text x="1110" y="960" class="caption">所有箭头均对应环境中的实际合法转移</text>
+</svg>
