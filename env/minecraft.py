@@ -3,6 +3,7 @@
 from typing import List, Tuple
 
 from env.mdp import MDP
+from env.minecraft_maps import BASELINE_MAP, MinecraftMap
 
 
 State = Tuple[int, int, int, int, int]
@@ -11,7 +12,7 @@ Transition = Tuple[float, State]
 
 
 class MinecraftMDP(MDP):
-    """无障碍 5x5 Minecraft-like Make Bridge 环境。
+    """可由简单地图配置加载的 Minecraft-like Make Bridge 环境。
 
     状态使用 ``(row, col, wood, iron, bridge)``：
     - ``row`` 从上到下递增，``col`` 从左到右递增；
@@ -21,16 +22,6 @@ class MinecraftMDP(MDP):
     每个非终止状态下的合法动作奖励均为 -1。越界动作保持原位，
     但仍然产生步长奖励。终止状态没有合法动作。
     """
-
-    grid_size = 5
-
-    start: Position = (0, 0)
-    wood: Position = (0, 4)
-    iron: Position = (4, 0)
-    factory: Position = (4, 4)
-
-    INITIAL_STATE: State = (0, 0, 0, 0, 0)
-    TERMINAL_STATE: State = (4, 4, 1, 1, 1)
 
     UP = 0
     DOWN = 1
@@ -56,8 +47,18 @@ class MinecraftMDP(MDP):
     STEP_REWARD = -1.0
     DISCOUNT_FACTOR = 0.95
 
-    def __init__(self):
-        """建立全部实际可达状态。"""
+    def __init__(self, map_config: MinecraftMap = BASELINE_MAP):
+        """加载地图配置，并建立全部实际可达状态。"""
+        self.map_config = map_config
+        self._validate_map_config()
+        self.grid_size = map_config.grid_size
+        self.start = map_config.start
+        self.wood = map_config.wood
+        self.iron = map_config.iron
+        self.factory = map_config.factory
+        self.obstacles = map_config.obstacles
+        self.INITIAL_STATE = (*self.start, 0, 0, 0)
+        self.TERMINAL_STATE = (*self.factory, 1, 1, 1)
         self._states = self._build_states()
         self._state_set = frozenset(self._states)
 
@@ -116,8 +117,11 @@ class MinecraftMDP(MDP):
         new_row = row + row_change
         new_col = col + col_change
 
-        # 越界时留在原位
-        if self._is_inside_grid(new_row, new_col):
+        # 越界或撞到障碍时留在原位。
+        if (
+            self._is_inside_grid(new_row, new_col)
+            and (new_row, new_col) not in self.obstacles
+        ):
             next_position = (new_row, new_col)
         else:
             next_position = (row, col)
@@ -136,12 +140,15 @@ class MinecraftMDP(MDP):
         return (next_row, next_col, has_wood, has_iron, has_bridge)
 
     def _build_states(self) -> Tuple[State, ...]:
-        """根据资源规则建立 96 个可达状态。"""
+        """根据资源规则建立全部实际可达状态。"""
         states = []
 
         for row in range(self.grid_size):
             for col in range(self.grid_size):
                 position = (row, col)
+
+                if position in self.obstacles:
+                    continue
 
                 # 未取得资源时，不能站在资源格上。
                 if position not in (self.wood, self.iron):
@@ -166,6 +173,42 @@ class MinecraftMDP(MDP):
         """判断位置是否位于地图内。"""
         return 0 <= row < self.grid_size and 0 <= col < self.grid_size
 
+    def _validate_map_config(self) -> None:
+        """检查会使地图规则无法成立的常见布局错误。"""
+        if not isinstance(self.map_config, MinecraftMap):
+            raise ValueError("map_config 必须是 MinecraftMap")
+        if self.map_config.grid_size <= 0:
+            raise ValueError("grid_size 必须大于 0")
+
+        positions = {
+            "start": self.map_config.start,
+            "wood": self.map_config.wood,
+            "iron": self.map_config.iron,
+            "factory": self.map_config.factory,
+        }
+        for name, position in positions.items():
+            if not self._position_is_inside_map(position):
+                raise ValueError(f"{name} 超出地图范围: {position}")
+
+        if len(set(positions.values())) != len(positions):
+            raise ValueError("start、wood、iron 和 factory 不能重合")
+
+        for obstacle in self.map_config.obstacles:
+            if not self._position_is_inside_map(obstacle):
+                raise ValueError(f"障碍超出地图范围: {obstacle}")
+            if obstacle in positions.values():
+                raise ValueError(f"障碍不能覆盖关键位置: {obstacle}")
+
+    def _position_is_inside_map(self, position: Position) -> bool:
+        """在地图配置校验时判断一个坐标是否在范围内。"""
+        row, col = position
+        return (
+            isinstance(row, int)
+            and isinstance(col, int)
+            and 0 <= row < self.map_config.grid_size
+            and 0 <= col < self.map_config.grid_size
+        )
+
     def _validate_state(self, state: State) -> None:
         """检查状态是否属于实际可达状态空间。"""
         try:
@@ -185,7 +228,7 @@ class MinecraftMDP(MDP):
             raise ValueError(f"非法动作: {action}")
 
     def render(self) -> str:
-        """返回固定地图的字符串表示。"""
+        """返回当前地图的字符串表示。"""
         lines = [
             f"Minecraft-like Make Bridge {self.grid_size}x{self.grid_size}",
             "=" * (self.grid_size * 4 + 1),
@@ -199,6 +242,8 @@ class MinecraftMDP(MDP):
 
                 if position == self.start:
                     symbols.append(" S ")
+                elif position in self.obstacles:
+                    symbols.append(" X ")
                 elif position == self.wood:
                     symbols.append(" W ")
                 elif position == self.iron:
@@ -211,6 +256,6 @@ class MinecraftMDP(MDP):
             lines.append("|" + "|".join(symbols) + "|")
 
         lines.append("=" * (self.grid_size * 4 + 1))
-        lines.append("S: 起点, W: wood, I: iron, F: factory, .: 可通行")
+        lines.append("S: 起点, W: wood, I: iron, F: factory, X: 障碍, .: 可通行")
 
         return "\n".join(lines)

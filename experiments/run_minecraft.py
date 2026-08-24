@@ -185,6 +185,7 @@ def save_value_policy_figure(env, policy, values, algorithm_name, file_name):
     color_map.set_bad("#D9D9D9")
     min_value = min(values.values())
     max_value = max(values.values())
+    obstacles = getattr(env, "obstacles", frozenset())
 
     figure, axes = plt.subplots(2, 2, figsize=(11, 10))
     image = None
@@ -194,6 +195,8 @@ def save_value_policy_figure(env, policy, values, algorithm_name, file_name):
 
         for row in range(env.grid_size):
             for col in range(env.grid_size):
+                if (row, col) in obstacles:
+                    continue
                 state = layer_state(env, row, col, wood, iron)
                 if state is not None:
                     value_grid[row, col] = values[state]
@@ -207,6 +210,18 @@ def save_value_policy_figure(env, policy, values, algorithm_name, file_name):
 
         for row in range(env.grid_size):
             for col in range(env.grid_size):
+                if (row, col) in obstacles:
+                    axis.text(
+                        col,
+                        row,
+                        "X\n障碍",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        color="#555555",
+                        fontweight="bold",
+                    )
+                    continue
                 state = layer_state(env, row, col, wood, iron)
                 marker = position_markers.get((row, col), "")
 
@@ -454,7 +469,7 @@ def main():
     pi_result = follow_policy(env, pi_policy)
     vi_result = follow_policy(env, vi_policy)
 
-    # 4. 核对 Day 9 的三个核心条件，异常时直接停止并报告原因。
+    # 4. 异常时直接停止并报告原因。
     if max_value_difference > VALUE_TOLERANCE:
         raise RuntimeError("PI 与 VI 的最优价值不一致")
 

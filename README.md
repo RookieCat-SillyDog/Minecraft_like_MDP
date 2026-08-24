@@ -49,7 +49,7 @@ python -B -m unittest discover -s tests -v
 当前预期结果：
 
 ```text
-Ran 43 tests
+Ran 48 tests
 OK
 ```
 
@@ -62,6 +62,8 @@ OK
 | GridWorld VI | `python -B -m experiments.run_value_iteration` | 9 轮收敛，与 PI 的最大价值差为 0 |
 | Minecraft 状态枚举 | `python -B -m experiments.enumerate_minecraft_states` | 理论状态 200、可达状态 96、转移 380 |
 | Minecraft PI/VI | `python -B -m experiments.run_minecraft` | 最大价值差为 0，两条路径均为 16 步 |
+| Minecraft 对照地图 | `python -B -m experiments.run_minecraft_challenge` | 92 个可达状态，最大价值差为 0，最优路径为 16 步 |
+
 
 Minecraft PI/VI 实验的当前结果：
 
@@ -71,6 +73,12 @@ Minecraft PI/VI 实验的当前结果：
 - 两条路径都按 `iron -> wood` 收集资源，并在 16 步后终止。
 
 实验图保存在 `figures/`，同时生成 PNG 和 SVG 文件。
+
+## 对照地图展示
+
+对照地图是对基线实验的补充展示，不替代 Day 6–9 的结果。它在 `(1, 0)` 放置一个障碍，并把 factory 移至 `(0, 2)`。`MinecraftMDP()` 仍加载原有无障碍基线；使用 `MinecraftMDP(CHALLENGE_MAP)` 才会加载对照地图。对照实验会验证障碍碰撞、条件终止、PI/VI 价值一致性，并生成 PI、VI 四层价值与策略图和最优路径图；图中的障碍格显示为 `X`，与资源规则导致的“不可达”格区分。
+
+
 
 ## 项目结构
 
@@ -92,4 +100,3 @@ minecraft-mdp/
 - 当前环境和算法均为确定性的，相同版本应得到相同结果。
 - PI、VI 仅通过统一 MDP 接口访问环境，没有 Minecraft 专用算法。
 - 当前命令已在上述开发环境中验证。
-
