@@ -1,11 +1,6 @@
-"""三因子 Minecraft 的基础图和任务配置。
+"""定义三因子 Minecraft 的基础图、可用性规则和 task anchors。"""
 
-这里只描述“任务是什么”；联合状态转移和 BFS 由
-``factored_minecraft.py`` 实现。阅读顺序是：状态与动作、通用数据结构、
-三张因子图，最后是 ``INDEPENDENT_TASK``。
-"""
-
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Callable, Mapping
 
 
@@ -18,7 +13,6 @@ FactorState = tuple[int, int]
 LocationState = FactorState
 KeyState = FactorState
 BeefState = FactorState
-ContextState = tuple[KeyState, BeefState]
 JointState = tuple[LocationState, KeyState, BeefState]
 LocationEdge = frozenset[LocationState]
 
@@ -48,20 +42,20 @@ BEEF_ACTIONS = (HEAT, COOL, CHOP, STIR)
 ACTION_ORDER = LOCATION_ACTIONS + KEY_ACTIONS + BEEF_ACTIONS
 
 
-def context_of(state: JointState) -> ContextState:
-    """从 ``(location, key, beef)`` 中取出 ``(key, beef)``。"""
-    return state[1], state[2]
-
-
 # 2. 通用数据结构
 
 @dataclass(frozen=True)
 class DirectedTransition:
-    """因子图中的一条有向边：source --action--> target。"""
+    """因子图中的一条有向 template：source --action--> target。"""
 
     source: FactorState
     action: Action
     target: FactorState
+
+
+def template_id(edge: DirectedTransition) -> str:
+    """返回展示和分析使用的稳定 template 标识。"""
+    return f"{edge.source}-{edge.action}->{edge.target}"
 
 
 @dataclass
@@ -75,6 +69,11 @@ class FactorGraph:
     labels: Mapping[FactorState, str]
     coordinates: Mapping[FactorState, tuple[float, float]]
 
+    # 因子图建立后内容不变。提前保存两种常用查找结果，避免求解器
+    # 在每次动作检查时重新扫描全部有向边。
+    _outgoing_lookup: dict = field(init=False, repr=False, compare=False)
+    _transition_lookup: dict = field(init=False, repr=False, compare=False)
+
     def __post_init__(self) -> None:
         """dataclass 创建对象后会自动执行这里。"""
         self.nodes = tuple(self.nodes)
@@ -83,40 +82,42 @@ class FactorGraph:
         self.labels = dict(self.labels)
         self.coordinates = dict(self.coordinates)
 
-        if not self.name or not self.nodes or not self.actions:
-            raise ValueError("factor graph 的 name、nodes 和 actions 不能为空")
-        if len(self.nodes) != len(set(self.nodes)) or len(self.actions) != len(
-            set(self.actions)
-        ):
-            raise ValueError(f"{self.name} 的 nodes 或 actions 有重复")
-        if set(self.labels) != set(self.nodes) or set(self.coordinates) != set(
-            self.nodes
-        ):
-            raise ValueError(f"{self.name} 的每个节点都需要 label 和 coordinate")
-
-        state_actions = []
+        seen_source_action = []
         for edge in self.transitions:
-            if (
-                edge.source not in self.nodes
-                or edge.target not in self.nodes
-                or edge.action not in self.actions
-                or edge.source == edge.target
-            ):
-                raise ValueError(f"{self.name} 含有非法 transition: {edge}")
-            state_actions.append((edge.source, edge.action))
-        if len(state_actions) != len(set(state_actions)):
+            if edge.source == edge.target:
+                raise ValueError(f"{self.name} 不允许 self-loop: {edge}")
+            seen_source_action.append((edge.source, edge.action))
+        if len(seen_source_action) != len(set(seen_source_action)):
             raise ValueError(f"{self.name} 的同一状态和动作不能有两个结果")
+
+        outgoing_lookup = {state: [] for state in self.nodes}
+        transition_lookup = {}
+        for edge in self.transitions:
+            outgoing_lookup[edge.source].append(edge)
+            transition_lookup[(edge.source, edge.action)] = edge
+
+        self._outgoing_lookup = {
+            state: tuple(edges)
+            for state, edges in outgoing_lookup.items()
+        }
+        self._transition_lookup = transition_lookup
+
+    @property
+    def templates(self) -> tuple[DirectedTransition, ...]:
+        """返回图中的有向 transition templates。"""
+        return tuple(dict.fromkeys(self.transitions))
+
+    @property
+    def template_ids(self) -> dict[DirectedTransition, str]:
+        """返回每个模板的稳定展示标识。"""
+        return {edge: template_id(edge) for edge in self.templates}
 
     def outgoing(self, state: FactorState) -> tuple[DirectedTransition, ...]:
         """返回从 ``state`` 出发的全部有向边。"""
         if state not in self.nodes:
             raise ValueError(f"{self.name} 中不存在状态 {state}")
 
-        result = []
-        for edge in self.transitions:
-            if edge.source == state:
-                result.append(edge)
-        return tuple(result)
+        return self._outgoing_lookup[state]
 
     def transition(
         self,
@@ -124,17 +125,9 @@ class FactorGraph:
         action: Action,
     ) -> DirectedTransition | None:
         """返回指定的边；动作不可用时返回 ``None``。"""
-        for edge in self.outgoing(state):
-            if edge.action == action:
-                return edge
-        return None
-
-    def has_connection(self, source: FactorState, target: FactorState) -> bool:
-        """判断图中是否存在 ``source -> target`` 的边。"""
-        for edge in self.outgoing(source):
-            if edge.target == target:
-                return True
-        return False
+        if state not in self.nodes:
+            raise ValueError(f"{self.name} 中不存在状态 {state}")
+        return self._transition_lookup.get((state, action))
 
 
 @dataclass
@@ -151,17 +144,22 @@ class AvailabilityRule:
         self.controlled_transitions = tuple(self.controlled_transitions)
         self.allowed_condition_states = frozenset(self.allowed_condition_states)
 
-        if not self.name or not self.controlled_transitions:
-            raise ValueError("availability rule 缺少 name 或 transition")
-        if not self.allowed_condition_states:
-            raise ValueError("allowed_condition_states 不能为空")
-        if len(self.controlled_transitions) != len(
-            set(self.controlled_transitions)
-        ):
-            raise ValueError("availability rule 中有重复 transition")
-
     def allows(self, conditioning_state: FactorState) -> bool:
         return conditioning_state in self.allowed_condition_states
+
+
+def rules_allow(
+    edge: DirectedTransition,
+    rules: tuple[AvailabilityRule, ...],
+    conditioning_state: FactorState,
+) -> bool:
+    """若某条边受到规则控制，则所有相关规则都必须允许它。"""
+    for rule in rules:
+        if edge in rule.controlled_transitions and not rule.allows(
+            conditioning_state
+        ):
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -188,6 +186,7 @@ class FactoredTaskConfig:
     location_gates: tuple[AvailabilityRule, ...]
     beef_gates: tuple[AvailabilityRule, ...]
     initial_state: JointState
+    query_set: tuple[JointState, ...]
     terminal_predicate: Callable[[JointState], bool]
     primitive_costs: Mapping[Action, float]
     action_order: tuple[Action, ...]
@@ -200,6 +199,7 @@ class FactoredTaskConfig:
         self.edge_landmarks = dict(self.edge_landmarks)
         self.location_gates = tuple(self.location_gates)
         self.beef_gates = tuple(self.beef_gates)
+        self.query_set = tuple(self.query_set)
         self.primitive_costs = dict(self.primitive_costs)
         self.action_order = tuple(self.action_order)
         self.validate()
@@ -231,8 +231,6 @@ class FactoredTaskConfig:
         raise ValueError(f"未知 action: {action}")
 
     def action_cost(self, action: Action) -> float:
-        if action not in self.primitive_costs:
-            raise ValueError(f"未知 action: {action}")
         return self.primitive_costs[action]
 
     def is_terminal(self, state: JointState) -> bool:
@@ -240,53 +238,70 @@ class FactoredTaskConfig:
 
     def validate(self) -> None:
         """只检查会使通用环境无法运行的配置错误。"""
-        if not self.task_name:
-            raise ValueError("task_name 不能为空")
         if tuple(graph.name for graph in self.graphs) != FACTOR_ORDER:
             raise ValueError("三张图的 name 必须依次为 L、K、B")
+        self._check_actions()
+        if not 0 <= self.discount_factor < 1:
+            raise ValueError("discount_factor 必须位于 [0, 1)")
+        self._check_states()
+        self._check_gates(
+            self.location_gates,
+            self.key_graph,
+            self.location_graph,
+        )
+        self._check_gates(
+            self.beef_gates,
+            self.location_graph,
+            self.beef_graph,
+        )
 
+    def _check_actions(self) -> None:
         all_actions = tuple(
             action for graph in self.graphs for action in graph.actions
         )
-        if (
-            len(all_actions) != len(set(all_actions))
-            or len(self.action_order) != len(set(self.action_order))
-            or set(self.action_order) != set(all_actions)
-            or set(self.primitive_costs) != set(all_actions)
-        ):
-            raise ValueError("动作必须全局唯一，并被顺序和代价完整覆盖")
-        if any(cost <= 0 for cost in self.primitive_costs.values()):
-            raise ValueError("primitive cost 必须大于 0")
-        if not 0 <= self.discount_factor < 1:
-            raise ValueError("discount_factor 必须位于 [0, 1)")
+        if len(all_actions) != len(set(all_actions)):
+            raise ValueError("动作必须全局唯一")
+        if len(self.action_order) != len(set(self.action_order)):
+            raise ValueError("action_order 不能有重复动作")
+        if set(self.action_order) != set(all_actions):
+            raise ValueError("action_order 必须覆盖全部动作")
+        if set(self.primitive_costs) != set(all_actions):
+            raise ValueError("primitive_costs 必须覆盖全部动作")
+
+    def _check_states(self) -> None:
         if len(self.initial_state) != 3 or any(
             state not in graph.nodes
             for state, graph in zip(self.initial_state, self.graphs)
         ):
             raise ValueError("initial_state 中有状态不属于对应因子图")
-        if not callable(self.terminal_predicate):
-            raise ValueError("terminal_predicate 必须可调用")
-        if self.is_terminal(self.initial_state):
-            raise ValueError("initial_state 不能已经终止")
+        if not self.query_set:
+            raise ValueError("query_set 不能为空")
+        for state in self.query_set:
+            if len(state) != 3 or any(
+                factor_state not in graph.nodes
+                for factor_state, graph in zip(state, self.graphs)
+            ):
+                raise ValueError("query_set 中有状态不属于对应因子图")
 
-        rule_groups = (
-            (self.location_gates, self.key_graph, self.location_graph),
-            (self.beef_gates, self.location_graph, self.beef_graph),
-        )
-        for rules, condition_graph, target_graph in rule_groups:
-            for rule in rules:
-                if rule.conditioning_factor != condition_graph.name:
-                    raise ValueError(f"{rule.name} 的 conditioning factor 不正确")
-                if rule.target_factor != target_graph.name:
-                    raise ValueError(f"{rule.name} 的 target factor 不正确")
-                if not rule.allowed_condition_states.issubset(
-                    condition_graph.nodes
-                ):
-                    raise ValueError(f"{rule.name} 含有不存在的条件状态")
-                if not set(rule.controlled_transitions).issubset(
-                    target_graph.transitions
-                ):
-                    raise ValueError(f"{rule.name} 引用了不存在的 transition")
+    @staticmethod
+    def _check_gates(
+        rules: tuple[AvailabilityRule, ...],
+        condition_graph: FactorGraph,
+        target_graph: FactorGraph,
+    ) -> None:
+        for rule in rules:
+            if rule.conditioning_factor != condition_graph.name:
+                raise ValueError(f"{rule.name} 的 conditioning factor 不正确")
+            if rule.target_factor != target_graph.name:
+                raise ValueError(f"{rule.name} 的 target factor 不正确")
+            if not rule.allowed_condition_states.issubset(
+                condition_graph.nodes
+            ):
+                raise ValueError(f"{rule.name} 含有不存在的条件状态")
+            if not set(rule.controlled_transitions).issubset(
+                target_graph.transitions
+            ):
+                raise ValueError(f"{rule.name} 引用了不存在的 transition")
 
 
 def make_undirected_edge(
@@ -312,8 +327,8 @@ BEEF_STATES = tuple(
 
 START_LOCATION = (2, 0)
 GOAL_LOCATION = (2, 2)
-BOARD_LOCATION = (1, 1)
-KITCHEN_LOCATION = (1, 2)
+BOARD_LOCATION = (1, 0)
+KITCHEN_LOCATION = (1, 1)
 
 WALLS = frozenset(
     {
@@ -321,7 +336,7 @@ WALLS = frozenset(
         make_undirected_edge((2, 1), (2, 2)),
     }
 )
-DOOR_EDGE = make_undirected_edge(BOARD_LOCATION, KITCHEN_LOCATION)
+DOOR_EDGE = make_undirected_edge((1, 1), (1, 2))
 
 ACTION_DELTAS = {
     UP: (-1, 0),
@@ -350,13 +365,13 @@ def _key_transitions() -> tuple[DirectedTransition, ...]:
     transitions = []
     for head, tail in KEY_STATES:
         source = (head, tail)
-        possible_results = {
+        targets_by_action = {
             HEAD_BLACK: (1, tail),
             HEAD_WHITE: (2, tail),
             TAIL_BLACK: (head, 1),
             TAIL_WHITE: (head, 2),
         }
-        for action, target in possible_results.items():
+        for action, target in targets_by_action.items():
             if target != source:
                 transitions.append(DirectedTransition(source, action, target))
     return tuple(transitions)
@@ -376,9 +391,13 @@ def _beef_transitions() -> tuple[DirectedTransition, ...]:
                 DirectedTransition(source, COOL, (cooking - 1, processing))
             )
         if processing == 0:
-            transitions.append(DirectedTransition(source, CHOP, (cooking, 1)))
+            transitions.append(
+                DirectedTransition(source, CHOP, (cooking, 1))
+            )
         if processing == 1:
-            transitions.append(DirectedTransition(source, STIR, (cooking, 2)))
+            transitions.append(
+                DirectedTransition(source, STIR, (cooking, 2))
+            )
     return tuple(transitions)
 
 
@@ -424,14 +443,15 @@ BEEF_GRAPH = FactorGraph(
 )
 
 
-# 4. Day 11–12：independent anchor
+# 4. 四个 task anchors
 
 INITIAL_STATE: JointState = (START_LOCATION, (0, 0), (0, 0))
 GOAL_STATE: JointState = (GOAL_LOCATION, (2, 2), (2, 2))
 
 PRIMITIVE_COSTS = {action: 1.0 for action in ACTION_ORDER}
 
-# independent 中，门和功能区只是地图标记，不限制动作。
+# 这些是声明性的地图元数据。墙已在建图时生效，门在下方筛选规则边；
+# 三项本身不参与运行时动作判定。
 INDEPENDENT_TASK = FactoredTaskConfig(
     task_name="independent",
     location_graph=LOCATION_GRAPH,
@@ -448,16 +468,63 @@ INDEPENDENT_TASK = FactoredTaskConfig(
     location_gates=(),
     beef_gates=(),
     initial_state=INITIAL_STATE,
+    query_set=(INITIAL_STATE,),
     terminal_predicate=ExactTerminalPredicate(GOAL_STATE),
     primitive_costs=PRIMITIVE_COSTS,
     action_order=ACTION_ORDER,
 )
 
-TASK_CONFIGS = {"independent": INDEPENDENT_TASK}
 
+DOOR_TRANSITIONS = tuple(
+    edge
+    for edge in LOCATION_GRAPH.transitions
+    if make_undirected_edge(edge.source, edge.target) == DOOR_EDGE
+)
+E_KITCHEN = DirectedTransition((0, 0), HEAT, (1, 0))
+E_BOARD = DirectedTransition((0, 0), CHOP, (0, 1))
 
-def get_task_config(task_name: str) -> FactoredTaskConfig:
-    """按名称取得任务配置。"""
-    if task_name not in TASK_CONFIGS:
-        raise ValueError(f"未知 factored task: {task_name}")
-    return TASK_CONFIGS[task_name]
+KEY_DOOR_RULE = AvailabilityRule(
+    name="white-key-door",
+    conditioning_factor=KEY_FACTOR,
+    target_factor=LOCATION_FACTOR,
+    controlled_transitions=DOOR_TRANSITIONS,
+    allowed_condition_states=frozenset({(2, 2)}),
+)
+KITCHEN_COOKING_RULE = AvailabilityRule(
+    name="kitchen-heat-gate",
+    conditioning_factor=LOCATION_FACTOR,
+    target_factor=BEEF_FACTOR,
+    controlled_transitions=(E_KITCHEN,),
+    allowed_condition_states=frozenset({KITCHEN_LOCATION}),
+)
+BOARD_CUTTING_RULE = AvailabilityRule(
+    name="board-chop-gate",
+    conditioning_factor=LOCATION_FACTOR,
+    target_factor=BEEF_FACTOR,
+    controlled_transitions=(E_BOARD,),
+    allowed_condition_states=frozenset({BOARD_LOCATION}),
+)
+
+KEY_GATES_LOCATION_TASK = replace(
+    INDEPENDENT_TASK,
+    task_name="key_gates_location",
+    location_gates=(KEY_DOOR_RULE,),
+)
+LOCATION_GATES_BEEF_TASK = replace(
+    INDEPENDENT_TASK,
+    task_name="location_gates_beef",
+    beef_gates=(KITCHEN_COOKING_RULE, BOARD_CUTTING_RULE),
+)
+COMBINED_TASK = replace(
+    INDEPENDENT_TASK,
+    task_name="combined",
+    location_gates=(KEY_DOOR_RULE,),
+    beef_gates=(KITCHEN_COOKING_RULE, BOARD_CUTTING_RULE),
+)
+
+TASK_CONFIGS = {
+    "independent": INDEPENDENT_TASK,
+    "key_gates_location": KEY_GATES_LOCATION_TASK,
+    "location_gates_beef": LOCATION_GATES_BEEF_TASK,
+    "combined": COMBINED_TASK,
+}

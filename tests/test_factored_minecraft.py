@@ -22,6 +22,7 @@ from env.factored_tasks import (
     TAIL_BLACK,
     TAIL_WHITE,
     UP,
+    template_id,
 )
 
 
@@ -46,10 +47,21 @@ class TestFactoredMinecraftMDP(unittest.TestCase):
             [len(graph.transitions) for graph in graphs],
             [20, 24, 18],
         )
+        self.assertEqual(
+            [len(graph.templates) for graph in graphs],
+            [20, 24, 18],
+        )
 
         for graph in graphs:
             self.assertEqual(set(graph.labels), set(graph.nodes))
             self.assertEqual(set(graph.coordinates), set(graph.nodes))
+            self.assertEqual(
+                graph.template_ids,
+                {
+                    edge: template_id(edge)
+                    for edge in graph.transitions
+                },
+            )
 
     def test_bfs_reachable_states(self):
         """检查 independent 的 BFS 结果完整、无重复且顺序稳定。"""

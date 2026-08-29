@@ -10,6 +10,7 @@
 - Policy Iteration（策略迭代，PI）。
 - Value Iteration（价值迭代，VI）。
 - Minecraft-like Make Bridge 环境、状态枚举、实验和自动测试。
+- 三因子 Factored MDP、四个 coupling anchors 和 tie-aware 最短路径分析。
 
 Minecraft 状态为 `(row, col, wood, iron, bridge)`。每步奖励为 `-1`，折扣因子为 `0.95`。完整定义见 [Minecraft MDP 规格](docs/minecraft_mdp_spec.md)。
 
@@ -49,7 +50,7 @@ python -B -m unittest discover -s tests -v
 当前预期结果：
 
 ```text
-Ran 48 tests
+Ran 64 tests
 OK
 ```
 
@@ -63,7 +64,18 @@ OK
 | Minecraft 状态枚举 | `python -B -m experiments.enumerate_minecraft_states` | 理论状态 200、可达状态 96、转移 380 |
 | Minecraft PI/VI | `python -B -m experiments.run_minecraft` | 最大价值差为 0，两条路径均为 16 步 |
 | Minecraft 对照地图 | `python -B -m experiments.run_minecraft_challenge` | 92 个可达状态，最大价值差为 0，最优路径为 16 步 |
+| 三因子 coupling 分析 | `python -B -m experiments.analyze_factored_tasks` | 四个 anchors 的 $L^*=10$，PI/VI 最大价值差为 0 |
 
+三因子分析的关键预期结果：
+
+| anchor | $K_{K\to L}$ | $K_{L\to B}$ | $L^*$ | $N_{K\to L}$ | $N_{L\to B}$ | $D$ | reachable states | shortest paths |
+| --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: |
+| `independent` | 0 | 0 | 10 | [0, 0] | [0, 0] | [2, 9] | 729 | 75600 |
+| `key_gates_location` | 2 | 0 | 10 | [1, 1] | [0, 0] | [2, 9] | 594 | 30240 |
+| `location_gates_beef` | 0 | 2 | 10 | [0, 0] | [1, 1] | [3, 9] | 729 | 10800 |
+| `combined` | 2 | 2 | 10 | [1, 1] | [1, 1] | [3, 9] | 594 | 4068 |
+
+三张因子图分别包含 20、24 和 18 个有向转移模板。两个活跃方向的 reachable-context 明细为：$M_{K\to L}=2$、总实例数 144，$M_{L\to B}=2$、总实例数 146；对应的模板比例为 $2/20$ 和 $2/18$，实例比例为 $2/144$ 和 $2/146$。
 
 Minecraft PI/VI 实验的当前结果：
 

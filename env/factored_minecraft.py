@@ -4,14 +4,13 @@ from collections import deque
 
 from env.factored_tasks import (
     Action,
-    AvailabilityRule,
     BEEF_FACTOR,
-    DirectedTransition,
     FactoredTaskConfig,
     INDEPENDENT_TASK,
     JointState,
     KEY_FACTOR,
     LOCATION_FACTOR,
+    rules_allow,
 )
 from env.mdp import MDP
 
@@ -31,6 +30,10 @@ class FactoredMinecraftMDP(MDP):
             raise ValueError("config 必须是 FactoredTaskConfig")
 
         self.config = config
+
+        # PI 和 VI 会反复查询同一状态的合法动作。缓存 tuple 可以避免
+        # 重复计算，也不会被调用者修改。
+        self._action_cache = {}
 
         # BFS 执行时，可达状态集合还没有建立完成。
         # 此时 _validate_state 只检查三个因子状态是否属于各自的图。
@@ -57,7 +60,12 @@ class FactoredMinecraftMDP(MDP):
         """按配置给定的固定顺序返回合法动作。"""
         self._validate_state(state)
 
+        if state in self._action_cache:
+            # MDP 接口原本返回 list，因此这里返回一份新的 list。
+            return list(self._action_cache[state])
+
         if self.config.is_terminal(state):
+            self._action_cache[state] = ()
             return []
 
         location, key, beef = state
@@ -68,7 +76,7 @@ class FactoredMinecraftMDP(MDP):
 
             if factor == LOCATION_FACTOR:
                 edge = self.config.location_graph.transition(location, action)
-                if edge is not None and self._rules_allow(
+                if edge is not None and rules_allow(
                     edge,
                     self.config.location_gates,
                     key,
@@ -82,14 +90,15 @@ class FactoredMinecraftMDP(MDP):
 
             elif factor == BEEF_FACTOR:
                 edge = self.config.beef_graph.transition(beef, action)
-                if edge is not None and self._rules_allow(
+                if edge is not None and rules_allow(
                     edge,
                     self.config.beef_gates,
                     location,
                 ):
                     legal_actions.append(action)
 
-        return legal_actions
+        self._action_cache[state] = tuple(legal_actions)
+        return list(legal_actions)
 
     def transitions(
         self,
@@ -125,19 +134,6 @@ class FactoredMinecraftMDP(MDP):
     def is_terminal(self, state: JointState) -> bool:
         self._validate_state(state)
         return self.config.is_terminal(state)
-
-    @staticmethod
-    def _rules_allow(
-        edge: DirectedTransition,
-        rules: tuple[AvailabilityRule, ...],
-        conditioning_state,
-    ) -> bool:
-        """若某条边受到规则控制，则所有相关规则都必须允许它。"""
-        for rule in rules:
-            if edge in rule.controlled_transitions:
-                if not rule.allows(conditioning_state):
-                    return False
-        return True
 
     def _build_reachable_states(self) -> tuple[JointState, ...]:
         """沿实际合法转移执行 BFS，稳定地枚举可达状态。"""
