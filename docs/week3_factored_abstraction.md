@@ -71,6 +71,27 @@ $$
 
 但代码和分析不能把 key 与 beef 合并成一个不可分解的 81-state inventory graph。
 
+完整环境只有一张从 initial state 出发可达的 joint-state transition graph：
+
+$$
+\mathcal G_{\mathcal X}=(\mathcal X_{mathrm{reach}},\mathcal E_{mathcal X}).
+$$
+
+Location、key 和 beef 是每个 joint state 的三个坐标，不是三组互斥节点。针对不同的 abstraction hypothesis，需要在同一张 joint graph 上构造三种 partition：
+
+$$
+\begin{aligned}
+\mathcal C^L_{k,b}
+&=\{(l,k,b):l\in\mathcal L\},\\
+\mathcal C^K_{l,b}
+&=\{(l,k,b):k\in\mathcal K\},\\
+\mathcal C^B_{l,k}
+&=\{(l,k,b):b\in\mathcal B\}.
+\end{aligned}
+$$
+
+这些 clusters 的集合分别记作 $\Pi^L$、$\Pi^K$ 和 $\Pi^B$。例如，$\Pi^L$ 中的每个 cluster 都固定 $(k,b)$，并包含一份可达的 location graph。Partition 是对 abstraction hypothesis 的形式化，不会产生新的环境状态。
+
 ### 2.2 本周科学问题
 
 完整的 $(l,k,b)$ 保证任务满足 Markov property，但人不一定把 729 个 joint states 分别学习。需要区分：
@@ -88,15 +109,22 @@ $$
 
 1. 为什么 $(l,k,b)$ 是 Markov state，而只使用 $l$、$k$ 或 $b$ 通常不是？
 2. 为什么 $c=(k,b)$ 仍然有用？为什么它不能替代对 $k$ 与 $b$ 的显式分解？
-3. “把状态写成三个坐标”和“跨 context 共享 component transition”有什么区别？
-4. 分别给出 $K\to L$ 和 $L\to B$ 的例子。哪个 factor 是条件，哪个 factor 被动作改变？
-5. 为什么 $K_{K\to L}=2$ 与 $K_{L\to B}=2$ 即使数量相同，也不是相同的 task manipulation？
-6. 环境中存在一扇钥匙门，但所有最短路径都避开它。它是否增加 structural coupling？是否增加该 query 的 required coupling？
-7. 为什么比较 coupling complexity 时必须单独控制最优 primitive 路径长度 $L^*$？
-8. 存在多条同长度最优路径时，为什么不能只报告 PI 或 VI 按 tie-breaking 选出的一条？
-9. 怎样设计 held-out $(l,k,b)$ recombination，区分 flat、object-separated 和 sparse three-factor learner？
-10. 构造一个断连 factor graph，说明规则枚举为什么可能包含 BFS 实际无法到达的 joint states。
-11. 哪些结果会削弱“人会分别抽象 location、key 与 beef”的假设？
+3. 为什么完整环境只有一张 joint-state graph？为什么 $\mathcal L$、$\mathcal K$、$\mathcal B$ 不能直接作为三个互斥 clusters？
+4. 如何从同一 joint graph 构造 $\Pi^L$、$\Pi^K$ 和 $\Pi^B$？为什么同一 transition 在不同 partitions 下可能具有不同类别？
+5. “把状态写成三个坐标”和“跨 context 共享 component transition”有什么区别？
+6. 分别给出 $K\to L$ 和 $L\to B$ 的例子。哪个 factor 是条件，哪个 factor 被动作改变？
+7. 为什么两个厨房不应把 $K_{L\to B}$ 从 1 变成 2？Template count 与 context multiplicity 分别反映什么复杂度？
+8. 为什么同名 `cook` 可能对应多个 transition templates？
+9. Lynn et al. 的 cross-cluster edge 与本任务的 cross-factor conditioning 有什么区别？
+10. 为什么 key-gated movement 可以是 $\Pi^L$ cluster 内部的 movement edge，同时仍构成 $K\to L$ coupling？
+11. Template proportion 与 instance proportion 中，哪个更接近抽象规则数量，哪个更接近实际经验暴露频率？
+12. 为什么 $K_{K\to L}=2$ 与 $K_{L\to B}=2$ 即使数量相同，也不是相同的 task manipulation？
+13. 环境中存在一扇钥匙门，但所有最短路径都避开它。它是否增加 structural coupling？是否增加该 query 的 required coupling？
+14. 为什么比较 coupling complexity 时必须单独控制最优 primitive 路径长度 $L^*$？
+15. 存在多条同长度最优路径时，为什么不能只报告 PI 或 VI 按 tie-breaking 选出的一条？
+16. 怎样设计 held-out $(l,k,b)$ recombination，区分 flat、object-separated 和 sparse three-factor learner？
+17. 构造一个断连 factor graph，说明规则枚举为什么可能包含 BFS 实际无法到达的 joint states。
+18. 哪些结果会削弱“人会分别抽象 location、key 与 beef”的假设？
 
 ## 4. MDP 与代码接口
 
@@ -209,11 +237,58 @@ BFS 至少保证：
 - [ ] 断连的 location、key 或 beef 区域不会产生虚假的 reachable joint states。
 - [ ] 枚举顺序稳定，使测试和图形结果可重复。
 
-## 5. Coupling complexity 的操作定义
+## 5. Joint graph、cluster topology 与 coupling complexity
 
-### 5.1 Structural coupling matrix
+### 5.1 同一 joint graph 上的三种 cluster partitions
 
-令 $\mathcal F=\{L,K,B\}$。定义 $K_{i\to j}$ 为：因子 $i$ 的取值改变了多少个 factor-$j$ 有向 transition templates 的可执行性或结果。
+Complexity analyzer 必须从 BFS 得到的 reachable joint-state graph 构造 $\Pi^L$、$\Pi^K$ 和 $\Pi^B$，不能分别生成三套环境。
+
+相对于指定 partition $\Pi^j$：
+
+- **Boundary state**：至少存在一个合法动作会改变当前 partition 固定的 context $s_{-j}$。
+- **Internal transition**：起点与终点在同一 cluster，并且两个端点都不是 boundary state。
+- **Boundary transition**：起点与终点仍在同一 cluster，但至少一个端点是 boundary state。
+- **Cross-cluster transition**：改变 $s_{-j}$，从 $\mathcal C^j_{s_{-j}}$ 进入另一个 cluster。
+
+三类 transition 在给定 partition 下必须互斥且完备。同一 joint transition 在不同 partitions 下允许得到不同类别。因此每次报告 internal、boundary 或 cross-cluster 时，都必须同时报告使用的是 $\Pi^L$、$\Pi^K$ 还是 $\Pi^B$。
+
+这一分类借鉴 Lynn et al. 对 modular network 中 internal、boundary 与 cross-cluster edges 的区分。Lynn 的指标描述一条边在指定 partition 中的拓扑位置；本任务的 directional coupling 描述不同 context clusters 中 component transition law 是否相同。不得把两者合并成一个计数。
+
+### 5.2 Transition template
+
+令 $\mathcal E_j$ 为 factor $j$ 的全部唯一有向 transition templates。确定性环境中的一个模板定义为
+
+$$
+e_j=(s_j,a_j,s'_j).
+$$
+
+稳定 template ID 必须使用 `(source_factor_state, action, target_factor_state)`，计数规则为：
+
+- [ ] 不得只按 action name 聚合。
+- [ ] 同名 action 对应不同 source-target pairs 时，分别计数。
+- [ ] 同一个 source-action-target rule 在多个 contexts 中出现时，仍是一个 template。
+- [ ] 动作不可用属于 availability 的变化，但 $\bot$ 不作为正常 target-state template。
+- [ ] 调换 task configuration 中 location、context 或 action 的顺序不能改变 template ID。
+
+### 5.3 Directional coupled template count
+
+令 $\mathcal F=\{L,K,B\}$。定义
+
+$$
+K_{i\to j}
+=
+\left|
+\left\{
+e_j\in\mathcal E_j:
+\operatorname{avail}(e_j\mid s_i)
+\text{ or }
+\operatorname{outcome}(e_j\mid s_i)
+\text{ varies with }s_i
+\right\}
+\right|.
+$$
+
+也就是说，$K_{i\to j}$ 统计比较不同 factor-$i$ conditioning contexts 时，有多少种 factor-$j$ component rules 不再保持不变。它不统计 cross-cluster edges。
 
 矩阵的行表示 conditioning factor，列表示 transition 被改变的 factor：
 
@@ -227,16 +302,72 @@ K_{B\to L} & K_{B\to K} & 0
 \end{pmatrix}.
 $$
 
-计数规则：
+结构耦合计数规则：
 
-- [ ] 按有向 transition template 计数。
 - [ ] action availability 或 transition outcome 只要依赖另一 factor，就计入对应矩阵项。
-- [ ] 一扇双向钥匙门计为两个 $K\to L$ transitions。
-- [ ] kitchen-gated cook 与 cutting-board-gated chop 各计一个 $L\to B$ transition。
-- [ ] 同时报告每个矩阵项对应的总 template 数和 coupling proportion。
+- [ ] 一扇双向钥匙门计为两个 $K\to L$ templates。
+- [ ] key-gated movement 改变不同 $\Pi^L$ clusters 中的 internal location topology；不得因此直接把 movement edge 标成 cross-cluster。
 - [ ] 自动验证第一版未使用的四个 off-diagonal entries 等于 0。
 
-### 5.2 Query-level coupling
+### 5.4 Context-expanded multiplicity 与两种比例
+
+定义耦合模板在具体 conditioning states 中的实例数：
+
+$$
+M_{i\to j}
+=
+\sum_{e_j:z_{i\to j}(e_j)=1}
+\left|
+\left\{
+s_i:e_j\text{ is instantiated under }s_i
+\right\}
+\right|.
+$$
+
+`instantiated` 表示该模板在 conditioning state $s_i$ 下合法执行并产生模板指定的 target。$M_{i\to j}$ 不替代 $K_{i\to j}$。
+
+必须分别报告：
+
+$$
+\rho^{\mathrm{template}}_{i\to j}
+=
+\frac{K_{i\to j}}{|\mathcal E_j|},
+$$
+
+$$
+\rho^{\mathrm{instance}}_{i\to j}
+=
+\frac{M_{i\to j}}
+{\displaystyle
+\sum_{e_j\in\mathcal E_j}
+\left|
+\left\{
+s_i:e_j\text{ is instantiated under }s_i
+\right\}
+\right|}.
+$$
+
+Template proportion 衡量 factor-$j$ 抽象规则中有多少比例需要 factor-$i$ conditioning。Instance proportion 衡量实际可执行 factor-$j$ transition instances 中，有多少属于这些 coupled templates。两个分母不同，输出和报告中禁止使用没有限定词的 `coupling_proportion`。
+
+**两个厨房示例：**若两个厨房都允许同一个
+
+$$
+b_{\mathrm{raw}}
+\xrightarrow{\mathrm{cook}}
+b_{\mathrm{cooked}},
+$$
+
+则 $K_{L\to B}=1$，$M_{L\to B}=2$。若同名 `cook` 还实现
+
+$$
+b_{\mathrm{medium}}
+\xrightarrow{\mathrm{cook}}
+b_{\mathrm{well}},
+$$
+
+则这是第二个有向 template；若它也在两个厨房执行，则两个模板合计 $K_{L\to B}=2$，并向 $M_{L\to B}$ 贡献 4 个 instances。
+
+### 5.5 Query-level coupling
 
 对路径 $\tau$ 计算每个 active coupling direction 实际使用的 transition 数：
 
@@ -244,7 +375,9 @@ $$
 N_{i\to j}(\tau)
 =\sum_{t=1}^{T}
 \mathbf 1[a_t\in\mathcal A_j]
-z_{i\to j}(s_{j,t-1},a_t).
+z_{i\to j}(e_{j,t}),
+\qquad
+e_{j,t}=(s_{j,t-1},a_t,s_{j,t}).
 $$
 
 对所有最短路径报告：
@@ -266,16 +399,24 @@ D(\tau)
 \mathbf 1[m(a_t)\neq m(a_{t+1})].
 $$
 
-统一输出：
+统一输出至少包含：
 
 ```text
-structural_coupling:
-  l_to_k: int
-  l_to_b: int
-  k_to_l: int
-  k_to_b: int
-  b_to_l: int
-  b_to_k: int
+cluster_topology:
+  partition: location | key | beef
+  internal_transition_count: int
+  boundary_transition_count: int
+  cross_cluster_transition_count: int
+
+directional_coupling:
+  i_to_j:
+    coupled_template_count: int
+    total_template_count: int
+    template_coupling_proportion: float
+    coupled_instance_count: int
+    total_instance_count: int
+    instance_coupling_proportion: float
+
 optimal_length: int
 path_coupling_range:
   k_to_l: [min, max]
@@ -316,6 +457,7 @@ reachable_states: int
 - [ ] 完成 `docs/week3_questions.md`。
 - [ ] 创建 `docs/factored_mdp_spec.md`，第一部分必须是与本任务书一致的 notation table。
 - [ ] 写清 $\mathcal L$、$\mathcal K$、$\mathcal B$、$\mathcal C$ 和 $\mathcal X$ 的关系。
+- [ ] 写清 $\mathcal G_{\mathcal X}$、$\Pi^L$、$\Pi^K$、$\Pi^B$ 与 $\mathcal C^j_{s_{-j}}$ 的关系。
 - [ ] 实现三个通用 $3\times3$ factor graphs 与 task configuration。
 - [ ] 实现三类 action，并测试每个 action 只改变一个 factor。
 - [ ] 实现真正的 BFS reachable-state enumeration。
@@ -323,13 +465,17 @@ reachable_states: int
 - [ ] 添加 Markov state、factor invariance、动作合法性、终止条件和 BFS 测试。
 - [ ] 在 `progress/day11.md` 和 `progress/day12.md` 记录工作、问题与 AI 使用。
 
-验收时需要现场解释：为什么 $x=(l,c)=(l,k,b)$ 两种写法都正确，以及为什么代码仍必须保留 $k$ 与 $b$ 的独立结构。
+验收时需要现场解释：为什么 $x=(l,c)=(l,k,b)$ 两种写法都正确，为什么完整环境只有一张 joint graph，以及三种 cluster partitions 如何表达不同 abstraction hypotheses。
 
 ## 8. Milestone 2：Coupling matrix 与四个 anchors（Day 13-14）
 
 建议 commit：`week3-m2: analyze three-factor coupling`
 
+- [ ] 从 reachable joint graph 构造 $\Pi^L$、$\Pi^K$ 和 $\Pi^B$。
+- [ ] 在每种 partition 下标记 internal、boundary 与 cross-cluster transitions。
+- [ ] 实现稳定的有向 transition template ID。
 - [ ] 实现完整 $3\times3$ structural coupling matrix。
+- [ ] 对每个方向输出 $K_{i\to j}$、$M_{i\to j}$、template proportion 与 instance proportion。
 - [ ] 实现四个 anchors，并得到预期的 $K_{K\to L}$ 与 $K_{L\to B}$。
 - [ ] 验证其他四个 off-diagonal coupling entries 全为 0。
 - [ ] 实现 shortest-path DAG 或等价方法，计算 coupling 与 switch min-max ranges。
@@ -338,7 +484,7 @@ reachable_states: int
 - [ ] 比较全部可达状态上的价值并检查并列最优动作。
 - [ ] 在 `progress/day13.md` 和 `progress/day14.md` 记录结果与问题。
 
-分析脚本必须生成：
+分析脚本必须生成以下 query-level summary，并同时输出 Section 5 规定的 cluster-topology 与 directional-coupling records：
 
 | anchor | $K_{K\to L}$ | $K_{L\to B}$ | $L^*$ | $N_{K\to L}$ range | $N_{L\to B}$ range | $D$ range | reachable states | PI/VI max diff |
 | --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: |
@@ -359,8 +505,10 @@ reachable_states: int
 
 - [ ] 第一部分为 notation table；
 - [ ] 三因子 MDP 和 hierarchical context $c=(k,b)$；
+- [ ] 一张 reachable joint graph 与 $\Pi^L$、$\Pi^K$、$\Pi^B$ 三种 cluster partitions；
 - [ ] flat、single-factor、object-separated 与 sparse three-factor hypotheses；
-- [ ] coupling matrix、query-level coupling、$L^*$ 与 $D$ 的区别；
+- [ ] internal、boundary、cross-cluster、template coupling、instance multiplicity、query-level coupling、$L^*$ 与 $D$ 的区别；
+- [ ] 两个厨房的 worked example，并明确 $K_{L\to B}=1$、$M_{L\to B}=2$；
 - [ ] 四个 anchors 的匹配过程和最终结果；
 - [ ] PI/VI 一致性与 tie-aware shortest-path 分析；
 - [ ] 三张结果图和当前 nuisance differences；
@@ -380,6 +528,16 @@ reachable_states: int
 - [ ] 三张 component graphs 都恰好包含 9 个理论 states。
 - [ ] 理论 joint state 数为 729；`states` 仅包含 initial state 实际可达的子集。
 - [ ] 至少一个断连测试证明 BFS 不声明不可达 joint states。
+- [ ] 从 reachable joint graph 正确构造 $\Pi^L$、$\Pi^K$ 和 $\Pi^B$。
+- [ ] 每条 reachable directed transition 在每个指定 partition 下恰好属于 internal、boundary、cross-cluster 三类之一。
+- [ ] 对每个 partition，三类 transition count 之和等于全部 reachable directed transitions。
+- [ ] 同一 transition 在不同 partitions 下可以得到不同类别，并有明确测试覆盖。
+- [ ] 同一 `raw + cook -> cooked` template 配置在两个厨房时，$K_{L\to B}=1$ 且 $M_{L\to B}=2$。
+- [ ] 同名 `cook` 对应两个不同 beef source-target pairs 时，template count 为 2。
+- [ ] 双向 key-gated door 产生两个有向 $K_{K\to L}$ templates。
+- [ ] Key-gated movement 被识别为不同 $\Pi^L$ clusters 中 internal topology 的变化，不被错误计作 cross-cluster movement。
+- [ ] Template proportion 与 instance proportion 分别使用 Section 5.4 中规定的分母。
+- [ ] 调换 task configuration 中 location、context 或 action 的顺序不改变 template ID 和计数。
 - [ ] 四个 anchors 的 coupling matrix 与目标完全一致。
 - [ ] 第一版未激活的 coupling entries 均为 0。
 - [ ] PI 与 VI 在全部可达状态上的价值差小于 $10^{-8}$。
