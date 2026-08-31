@@ -1,5 +1,7 @@
 # 第三周任务：三因子 Factored MDP 与耦合复杂度
 
+> 本文件是简版任务说明；完整计数定义以 `MDP/week3_factored_abstraction_revised.md` 和 `docs/factored_mdp_spec.md` 为准。当前实现区分 schema count $S$ 与 grounded template count $K$。
+
 ## 1. 第二周结论与本周边界
 
 第二周任务通过。你已经完成 Minecraft-like MDP、可达状态分析、Policy Iteration（PI）与 Value Iteration（VI）交叉验证，并能够生成价值函数和最优路径图。
@@ -118,7 +120,7 @@ $$
 9. Lynn et al. 的 cross-cluster edge 与本任务的 cross-factor conditioning 有什么区别？
 10. 为什么 key-gated movement 可以是 $\Pi^L$ cluster 内部的 movement edge，同时仍构成 $K\to L$ coupling？
 11. Template proportion 与 instance proportion 中，哪个更接近抽象规则数量，哪个更接近实际经验暴露频率？
-12. 为什么 $K_{K\to L}=2$ 与 $K_{L\to B}=2$ 即使数量相同，也不是相同的 task manipulation？
+12. 为什么 $S_{K\to L}=S_{L\to B}=2$，但 $K_{K\to L}$ 与 $K_{L\to B}$ 不相等？
 13. 环境中存在一扇钥匙门，但所有最短路径都避开它。它是否增加 structural coupling？是否增加该 query 的 required coupling？
 14. 为什么比较 coupling complexity 时必须单独控制最优 primitive 路径长度 $L^*$？
 15. 存在多条同长度最优路径时，为什么不能只报告 PI 或 VI 按 tie-breaking 选出的一条？
@@ -197,6 +199,8 @@ $$
 - key state 改变 location transition，即 $K\to L$；
 - location 改变 beef transition，即 $L\to B$。
 
+Beef 使用 `cook` 和 `cut` 两个动作模式，分别令 $b_c$ 和 $b_d$ 按 $0\to1\to2$ 前进。启用位置门控时，全部 `cook` 转移要求 kitchen，全部 `cut` 转移要求 cutting board。
+
 以下 coupling 在第一版必须为 0：
 
 $$
@@ -270,7 +274,9 @@ $$
 - [ ] 动作不可用属于 availability 的变化，但 $\bot$ 不作为正常 target-state template。
 - [ ] 调换 task configuration 中 location、context 或 action 的顺序不能改变 template ID。
 
-### 5.3 Directional coupled template count
+### 5.3 两层 structural coupling matrix
+
+令 $R_j$ 是 factor-$j$ 的动作模式集合，$E_j$ 是全部唯一有向三元组 $(s_j,a_j,s'_j)$ 的集合。$S_{i\to j}$ 统计受因子 $i$ 影响的 factor-$j$ 动作模式数，$K_{i\to j}$ 统计受影响的具体有向模板数。
 
 令 $\mathcal F=\{L,K,B\}$。定义
 
@@ -290,10 +296,20 @@ $$
 
 也就是说，$K_{i\to j}$ 统计比较不同 factor-$i$ conditioning contexts 时，有多少种 factor-$j$ component rules 不再保持不变。它不统计 cross-cluster edges。
 
-矩阵的行表示 conditioning factor，列表示 transition 被改变的 factor：
+两张矩阵的行都表示 conditioning factor，列都表示 transition 被改变的 factor：
 
 $$
-\mathbf K_{\mathrm{struct}}
+\mathbf S_{\mathrm{schema}}
+=
+\begin{pmatrix}
+0 & S_{L\to K} & S_{L\to B}\\
+S_{K\to L} & 0 & S_{K\to B}\\
+S_{B\to L} & S_{B\to K} & 0
+\end{pmatrix},
+$$
+
+$$
+\mathbf K_{\mathrm{template}}
 =
 \begin{pmatrix}
 0 & K_{L\to K} & K_{L\to B}\\
@@ -304,8 +320,12 @@ $$
 
 结构耦合计数规则：
 
+- [ ] 按有向 transition template 计数。
+- [ ] 另行按唯一动作名称计算 schema count，不得与 template count 混用。
 - [ ] action availability 或 transition outcome 只要依赖另一 factor，就计入对应矩阵项。
 - [ ] 一扇双向钥匙门计为两个 $K\to L$ templates。
+- [ ] 全部 6 条 `cook` templates 和全部 6 条 `cut` templates 分别要求 kitchen 和 cutting board。
+- [ ] 同时报告每个矩阵项的 schema、template、instance 总数和对应比例。
 - [ ] key-gated movement 改变不同 $\Pi^L$ clusters 中的 internal location topology；不得因此直接把 movement edge 标成 cross-cluster。
 - [ ] 自动验证第一版未使用的四个 off-diagonal entries 等于 0。
 
@@ -417,6 +437,20 @@ directional_coupling:
     total_instance_count: int
     instance_coupling_proportion: float
 
+schema_coupling:
+  l_to_k: int
+  l_to_b: int
+  k_to_l: int
+  k_to_b: int
+  b_to_l: int
+  b_to_k: int
+template_coupling:
+  l_to_k: int
+  l_to_b: int
+  k_to_l: int
+  k_to_b: int
+  b_to_l: int
+  b_to_k: int
 optimal_length: int
 path_coupling_range:
   k_to_l: [min, max]
@@ -429,14 +463,14 @@ reachable_states: int
 
 ## 6. 四个 task anchors
 
-四个条件固定 $|\mathcal L|=|\mathcal K|=|\mathcal B|=9$，并使用相同 initial state、goal、primitive cost 和三张基础 component graphs。首版令 $k=2$：
+四个条件固定 $|\mathcal L|=|\mathcal K|=|\mathcal B|=9$，并使用相同 initial state、goal、primitive cost 和三张基础 component graphs：
 
-| Anchor | $K_{K\to L}$ | $K_{L\to B}$ | 其他 coupling | 必须包含的规则 |
-| --- | ---: | ---: | ---: | --- |
-| `independent` | 0 | 0 | 全部为 0 | 移动不依赖 key；beef transition 不依赖 location |
-| `key_gates_location` | 2 | 0 | 全部为 0 | 一扇双向门要求指定 key state |
-| `location_gates_beef` | 0 | 2 | 全部为 0 | cook 与 chop 分别要求 kitchen 和 cutting board |
-| `combined` | 2 | 2 | 全部为 0 | 同时包含钥匙门和两个功能区限制 |
+| Anchor | $(S_{K\to L},S_{L\to B})$ | $(K_{K\to L},K_{L\to B})$ | 其他 coupling | 必须包含的规则 |
+| --- | --- | --- | --- | --- |
+| `independent` | (0, 0) | (0, 0) | 全部为 0 | 移动不依赖 key；beef transition 不依赖 location |
+| `key_gates_location` | (2, 0) | (2, 0) | 全部为 0 | 一扇双向门要求指定 key state |
+| `location_gates_beef` | (0, 2) | (0, 12) | 全部为 0 | `cook` 与 `cut` 分别要求 kitchen 和 cutting board |
+| `combined` | (2, 2) | (2, 12) | 全部为 0 | 同时包含钥匙门和两个功能区限制 |
 
 钥匙门 predicate 必须同时读取 $k_h$ 和 $k_t$。Kitchen 只改变 $b_c$，cutting board 只改变 $b_d$。任何动作都不得同时改变两个 factors。
 
@@ -474,9 +508,9 @@ reachable_states: int
 - [ ] 从 reachable joint graph 构造 $\Pi^L$、$\Pi^K$ 和 $\Pi^B$。
 - [ ] 在每种 partition 下标记 internal、boundary 与 cross-cluster transitions。
 - [ ] 实现稳定的有向 transition template ID。
-- [ ] 实现完整 $3\times3$ structural coupling matrix。
-- [ ] 对每个方向输出 $K_{i\to j}$、$M_{i\to j}$、template proportion 与 instance proportion。
-- [ ] 实现四个 anchors，并得到预期的 $K_{K\to L}$ 与 $K_{L\to B}$。
+- [ ] 实现完整 $3\times3$ schema 与 template coupling matrices。
+- [ ] 对每个方向输出 $S_{i\to j}$、$K_{i\to j}$、$M_{i\to j}$、template proportion 与 instance proportion。
+- [ ] 实现四个 anchors，并得到预期的 schema 与 template coupling。
 - [ ] 验证其他四个 off-diagonal coupling entries 全为 0。
 - [ ] 实现 shortest-path DAG 或等价方法，计算 coupling 与 switch min-max ranges。
 - [ ] 调整 task layout，完成指定 query 的 $L^*$ matching。
@@ -486,8 +520,8 @@ reachable_states: int
 
 分析脚本必须生成以下 query-level summary，并同时输出 Section 5 规定的 cluster-topology 与 directional-coupling records：
 
-| anchor | $K_{K\to L}$ | $K_{L\to B}$ | $L^*$ | $N_{K\to L}$ range | $N_{L\to B}$ range | $D$ range | reachable states | PI/VI max diff |
-| --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: |
+| anchor | $(S_{K\to L},S_{L\to B})$ | $(K_{K\to L},K_{L\to B})$ | $L^*$ | $N_{K\to L}$ range | $N_{L\to B}$ range | $D$ range | reachable states | PI/VI max diff |
+| --- | --- | --- | ---: | --- | --- | --- | ---: | ---: |
 
 ## 9. Milestone 3：可视化、报告与验收（Day 15）
 
@@ -524,7 +558,7 @@ reachable_states: int
 - [ ] 新测试覆盖三个 factor spaces 和四个 anchors。
 - [ ] 每个 location、key、beef action 只改变对应 factor。
 - [ ] 门只在 key predicate 满足时提供对应 location action。
-- [ ] cook 与 chop 只在要求的位置改变对应 beef dimension。
+- [ ] `cook` 与 `cut` 只在要求的位置改变对应 beef dimension。
 - [ ] 三张 component graphs 都恰好包含 9 个理论 states。
 - [ ] 理论 joint state 数为 729；`states` 仅包含 initial state 实际可达的子集。
 - [ ] 至少一个断连测试证明 BFS 不声明不可达 joint states。
@@ -551,7 +585,7 @@ reachable_states: int
 
 1. 不使用 AI，解释 coupling matrix 的行、列和两个 active entries。
 2. 临时改变一扇门的 key predicate，先预测 coupling matrix、reachable states 和 $L^*$，再运行验证。
-3. 临时把 kitchen constraint 改为 location invariant，预测 $K_{L\to B}$ 如何变化。
+3. 临时把 `cook` 改为 location invariant，预测 $S_{L\to B}$、$K_{L\to B}$ 和 $N_{L\to B}$ 如何变化。
 4. 构造两条同长度但 action-domain switch 数不同的最优路径，并解释 range。
 5. 修改一个 anchor 后，现场补充相应自动测试。
 

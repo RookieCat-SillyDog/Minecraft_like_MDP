@@ -7,11 +7,11 @@ from env.factored_minecraft import FactoredMinecraftMDP
 from env.factored_tasks import (
     BEEF_FACTOR,
     BEEF_GRAPH,
-    CHOP,
+    COOK,
+    CUT,
     GOAL_STATE,
     HEAD_BLACK,
     HEAD_WHITE,
-    HEAT,
     INDEPENDENT_TASK,
     KEY_FACTOR,
     KEY_GRAPH,
@@ -45,11 +45,11 @@ class TestFactoredMinecraftMDP(unittest.TestCase):
         self.assertEqual([len(graph.nodes) for graph in graphs], [9, 9, 9])
         self.assertEqual(
             [len(graph.transitions) for graph in graphs],
-            [20, 24, 18],
+            [20, 24, 12],
         )
         self.assertEqual(
             [len(graph.templates) for graph in graphs],
-            [20, 24, 18],
+            [20, 24, 12],
         )
 
         for graph in graphs:
@@ -116,8 +116,8 @@ class TestFactoredMinecraftMDP(unittest.TestCase):
             HEAD_WHITE,
             TAIL_BLACK,
             TAIL_WHITE,
-            HEAT,
-            CHOP,
+            COOK,
+            CUT,
         ]
         self.assertEqual(self.env.actions(self.env.initial_state), expected_actions)
         self.assertAlmostEqual(self.env.discount_factor, 0.95)

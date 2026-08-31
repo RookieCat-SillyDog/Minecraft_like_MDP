@@ -1,20 +1,25 @@
 """四个 factored task anchors 与耦合分析测试。"""
 
 import unittest
+from dataclasses import replace
 
 from env.factored_minecraft import FactoredMinecraftMDP
 from env.factored_tasks import (
+    AvailabilityRule,
+    BEEF_FACTOR,
+    BEEF_STATES,
     BOARD_LOCATION,
-    CHOP,
-    COOL,
-    HEAT,
+    COOK,
+    CUT,
+    DirectedTransition,
     INDEPENDENT_TASK,
+    KEY_FACTOR,
     KEY_GATES_LOCATION_TASK,
     KITCHEN_LOCATION,
     LEFT,
+    LOCATION_FACTOR,
     LOCATION_GATES_BEEF_TASK,
     RIGHT,
-    STIR,
     TASK_CONFIGS,
 )
 from experiments.analyze_factored_tasks import (
@@ -25,9 +30,23 @@ from experiments.analyze_factored_tasks import (
 )
 
 
+class KeyChangesCookOutcomeMDP(FactoredMinecraftMDP):
+    """用于验证同一动作在不同 Key context 下产生不同目标。"""
+
+    def transitions(self, state, action):
+        outcomes = super().transitions(state, action)
+
+        if action == COOK and state[1] == (2, 2) and state[2] == (0, 0):
+            location, key, _ = state
+            return [(1.0, (location, key, (2, 0)))]
+
+        return outcomes
+
+
 EXPECTED_RESULTS = {
     "independent": {
-        "coupling": (0, 0),
+        "schema_coupling": (0, 0),
+        "template_coupling": (0, 0),
         "reachable": 729,
         "path_count": 75600,
         "k_to_l_range": [0, 0],
@@ -35,7 +54,8 @@ EXPECTED_RESULTS = {
         "switch_range": [2, 9],
     },
     "key_gates_location": {
-        "coupling": (2, 0),
+        "schema_coupling": (2, 0),
+        "template_coupling": (2, 0),
         "reachable": 594,
         "path_count": 30240,
         "k_to_l_range": [1, 1],
@@ -43,20 +63,22 @@ EXPECTED_RESULTS = {
         "switch_range": [2, 9],
     },
     "location_gates_beef": {
-        "coupling": (0, 2),
+        "schema_coupling": (0, 2),
+        "template_coupling": (0, 12),
         "reachable": 729,
-        "path_count": 10800,
+        "path_count": 90,
         "k_to_l_range": [0, 0],
-        "l_to_b_range": [1, 1],
-        "switch_range": [3, 9],
+        "l_to_b_range": [4, 4],
+        "switch_range": [5, 8],
     },
     "combined": {
-        "coupling": (2, 2),
+        "schema_coupling": (2, 2),
+        "template_coupling": (2, 12),
         "reachable": 594,
-        "path_count": 4068,
+        "path_count": 56,
         "k_to_l_range": [1, 1],
-        "l_to_b_range": [1, 1],
-        "switch_range": [3, 9],
+        "l_to_b_range": [4, 4],
+        "switch_range": [5, 8],
     },
 }
 
@@ -79,22 +101,24 @@ class TestFactoredAnchorRules(unittest.TestCase):
                 blocked_state = (KITCHEN_LOCATION, key, (0, 0))
                 self.assertNotIn(RIGHT, env.actions(blocked_state))
 
-    def test_two_specific_beef_templates_require_their_locations(self):
+    def test_all_beef_actions_require_their_locations(self):
         env = FactoredMinecraftMDP(LOCATION_GATES_BEEF_TASK)
 
-        kitchen_heat = (KITCHEN_LOCATION, (0, 0), (0, 0))
-        board_heat = (BOARD_LOCATION, (0, 0), (0, 0))
-        self.assertIn(HEAT, env.actions(kitchen_heat))
-        self.assertNotIn(HEAT, env.actions(board_heat))
+        for beef in BEEF_STATES:
+            kitchen_state = (KITCHEN_LOCATION, (0, 0), beef)
+            board_state = (BOARD_LOCATION, (0, 0), beef)
 
-        board_chop = (BOARD_LOCATION, (0, 0), (0, 0))
-        kitchen_chop = (KITCHEN_LOCATION, (0, 0), (0, 0))
-        self.assertIn(CHOP, env.actions(board_chop))
-        self.assertNotIn(CHOP, env.actions(kitchen_chop))
+            if beef[0] < 2:
+                self.assertIn(COOK, env.actions(kitchen_state))
+                self.assertNotIn(COOK, env.actions(board_state))
+            else:
+                self.assertNotIn(COOK, env.actions(kitchen_state))
 
-        # 其他 Beef templates 不受地点控制。
-        self.assertIn(HEAT, env.actions((BOARD_LOCATION, (0, 0), (1, 0))))
-        self.assertIn(CHOP, env.actions((KITCHEN_LOCATION, (0, 0), (1, 0))))
+            if beef[1] < 2:
+                self.assertIn(CUT, env.actions(board_state))
+                self.assertNotIn(CUT, env.actions(kitchen_state))
+            else:
+                self.assertNotIn(CUT, env.actions(board_state))
 
     def test_all_anchor_actions_change_only_one_factor(self):
         for task_name, config in TASK_CONFIGS.items():
@@ -108,6 +132,64 @@ class TestFactoredAnchorRules(unittest.TestCase):
                     )
                     with self.subTest(task=task_name, state=state, action=action):
                         self.assertEqual(changed_factors, 1)
+
+
+class TestCouplingCounterexamples(unittest.TestCase):
+    """用独立反例检查模板数、实例数和结果变化。"""
+
+    def test_one_template_can_have_two_legal_location_instances(self):
+        controlled_edge = DirectedTransition((0, 0), COOK, (1, 0))
+        rule = AvailabilityRule(
+            name="two-location-cook-gate",
+            conditioning_factor=LOCATION_FACTOR,
+            target_factor=BEEF_FACTOR,
+            controlled_transitions=(controlled_edge,),
+            allowed_condition_states=frozenset(
+                {BOARD_LOCATION, KITCHEN_LOCATION}
+            ),
+        )
+        config = replace(
+            INDEPENDENT_TASK,
+            task_name="two-location-instance-test",
+            beef_gates=(rule,),
+        )
+
+        coupling = structural_coupling(FactoredMinecraftMDP(config))
+        detail = coupling["metrics"][(LOCATION_FACTOR, BEEF_FACTOR)]
+
+        self.assertEqual(detail["coupled_schemas"], 1)
+        self.assertEqual(detail["total_schemas"], 2)
+        self.assertEqual(detail["coupled_templates"], 1)
+        self.assertEqual(detail["total_templates"], 12)
+        self.assertEqual(detail["coupled_instances"], 2)
+        self.assertEqual(detail["total_instances"], 101)
+        self.assertAlmostEqual(detail["schema_proportion"], 1 / 2)
+        self.assertAlmostEqual(detail["template_proportion"], 1 / 12)
+        self.assertAlmostEqual(detail["instance_proportion"], 2 / 101)
+
+    def test_result_change_creates_two_coupled_templates(self):
+        env = KeyChangesCookOutcomeMDP(INDEPENDENT_TASK)
+        coupling = structural_coupling(env)
+        detail = coupling["metrics"][(KEY_FACTOR, BEEF_FACTOR)]
+        expected_templates = {
+            DirectedTransition((0, 0), COOK, (1, 0)),
+            DirectedTransition((0, 0), COOK, (2, 0)),
+        }
+
+        self.assertEqual(coupling["template_counts"]["k_to_b"], 2)
+        self.assertEqual(coupling["schema_counts"]["k_to_b"], 1)
+        self.assertEqual(
+            coupling["templates"][(KEY_FACTOR, BEEF_FACTOR)],
+            expected_templates,
+        )
+        self.assertEqual(detail["total_schemas"], 2)
+        self.assertEqual(detail["coupled_schemas"], 1)
+        self.assertEqual(detail["total_templates"], 13)
+        self.assertEqual(detail["coupled_instances"], 9)
+        self.assertEqual(detail["total_instances"], 108)
+        self.assertAlmostEqual(detail["schema_proportion"], 1 / 2)
+        self.assertAlmostEqual(detail["template_proportion"], 2 / 13)
+        self.assertAlmostEqual(detail["instance_proportion"], 9 / 108)
 
 
 class TestFactoredTaskAnalysis(unittest.TestCase):
@@ -126,33 +208,49 @@ class TestFactoredTaskAnalysis(unittest.TestCase):
 
         for name, expected in EXPECTED_RESULTS.items():
             result = self.results[name]
-            counts = result["structural_coupling"]
+            schema_counts = result["schema_coupling"]
+            template_counts = result["template_coupling"]
             with self.subTest(task=name):
                 self.assertEqual(
-                    (counts["k_to_l"], counts["l_to_b"]),
-                    expected["coupling"],
+                    (schema_counts["k_to_l"], schema_counts["l_to_b"]),
+                    expected["schema_coupling"],
+                )
+                self.assertEqual(
+                    (
+                        template_counts["k_to_l"],
+                        template_counts["l_to_b"],
+                    ),
+                    expected["template_coupling"],
                 )
                 for key in inactive_keys:
-                    self.assertEqual(counts[key], 0)
-                metrics = result["coupling_metrics"]
+                    self.assertEqual(schema_counts[key], 0)
+                    self.assertEqual(template_counts[key], 0)
+                details = result["coupling_detail"]
                 self.assertEqual(
                     result["query_initial_state"],
                     TASK_CONFIGS[name].query_set[0],
                 )
-                key_location = metrics[("K", "L")]
-                location_beef = metrics[("L", "B")]
+                key_location = details["k_to_l"]
+                location_beef = details["l_to_b"]
+                self.assertEqual(key_location["total_schemas"], 4)
+                self.assertEqual(location_beef["total_schemas"], 2)
                 self.assertEqual(key_location["total_templates"], 20)
-                self.assertEqual(location_beef["total_templates"], 18)
+                self.assertEqual(location_beef["total_templates"], 12)
                 self.assertEqual(key_location["analysis_scope"], "reachable_contexts")
                 self.assertEqual(location_beef["analysis_scope"], "reachable_contexts")
-                if counts["k_to_l"]:
+                if template_counts["k_to_l"]:
                     self.assertEqual(
                         (
+                            key_location["coupled_schemas"],
                             key_location["coupled_templates"],
                             key_location["coupled_instances"],
                             key_location["total_instances"],
                         ),
-                        (2, 2, 144),
+                        (2, 2, 2, 144),
+                    )
+                    self.assertAlmostEqual(
+                        key_location["schema_proportion"],
+                        2 / 4,
                     )
                     self.assertAlmostEqual(
                         key_location["template_proportion"],
@@ -162,27 +260,33 @@ class TestFactoredTaskAnalysis(unittest.TestCase):
                         key_location["instance_proportion"],
                         2 / 144,
                     )
-                if counts["l_to_b"]:
+                if template_counts["l_to_b"]:
                     self.assertEqual(
                         (
+                            location_beef["coupled_schemas"],
                             location_beef["coupled_templates"],
                             location_beef["coupled_instances"],
                             location_beef["total_instances"],
                         ),
-                        (2, 2, 146),
+                        (2, 12, 12, 12),
+                    )
+                    self.assertAlmostEqual(
+                        location_beef["schema_proportion"],
+                        2 / 2,
                     )
                     self.assertAlmostEqual(
                         location_beef["template_proportion"],
-                        2 / 18,
+                        12 / 12,
                     )
                     self.assertAlmostEqual(
                         location_beef["instance_proportion"],
-                        2 / 146,
+                        12 / 12,
                     )
                 for key in inactive_keys:
-                    source, target = key.split("_to_")
-                    values = metrics[(source.upper(), target.upper())]
+                    values = details[key]
+                    self.assertEqual(values["coupled_schemas"], 0)
                     self.assertEqual(values["coupled_instances"], 0)
+                    self.assertEqual(values["schema_proportion"], 0.0)
                     self.assertEqual(values["template_proportion"], 0.0)
                     self.assertEqual(values["instance_proportion"], 0.0)
 

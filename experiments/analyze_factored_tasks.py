@@ -14,6 +14,7 @@ from algorithms.value_iteration import ValueIteration, find_best_actions
 from env.factored_minecraft import FactoredMinecraftMDP
 from env.factored_tasks import (
     BEEF_FACTOR,
+    DirectedTransition,
     FACTOR_ORDER,
     KEY_FACTOR,
     LOCATION_FACTOR,
@@ -77,28 +78,67 @@ def reachable_context_groups(env, conditioning_factor, target_factor, edge):
     return groups
 
 
+def deterministic_successor(env, state, action):
+    """取得确定性动作的唯一后继。"""
+    transitions = env.transitions(state, action)
+    if len(transitions) != 1 or transitions[0][0] != 1.0:
+        raise ValueError("factored task 分析要求确定性转移")
+    return transitions[0][1]
+
+
+def actual_templates_by_factor(env):
+    """从全部可达转移收集三个因子的实际有向模板。"""
+    templates = {factor: [] for factor in FACTOR_ORDER}
+    seen = {factor: set() for factor in FACTOR_ORDER}
+
+    for state in env.states:
+        if env.is_terminal(state):
+            continue
+
+        for action in env.actions(state):
+            factor = env.config.factor_for_action(action)
+            factor_index = FACTOR_INDEX[factor]
+            next_state = deterministic_successor(env, state, action)
+            edge = DirectedTransition(
+                source=state[factor_index],
+                action=action,
+                target=next_state[factor_index],
+            )
+
+            if edge not in seen[factor]:
+                seen[factor].add(edge)
+                templates[factor].append(edge)
+
+    return {
+        factor: tuple(edges)
+        for factor, edges in templates.items()
+    }
+
+
 def structural_coupling(env):
-    """从实际转移律计算六个方向的 z、K、M 与两种比例。"""
-    config = env.config
-    matrix = {}
+    """计算六个方向的规则模式和具体模板耦合。"""
+    actual_templates = actual_templates_by_factor(env)
+    template_matrix = {}
+    schema_matrix = {}
     direction_metrics = {}
     coupled_templates = {}
 
     for conditioning in FACTOR_ORDER:
-        matrix[conditioning] = {}
+        template_matrix[conditioning] = {}
+        schema_matrix[conditioning] = {}
 
         for target in FACTOR_ORDER:
             if conditioning == target:
-                matrix[conditioning][target] = 0
+                template_matrix[conditioning][target] = 0
+                schema_matrix[conditioning][target] = 0
                 continue
 
-            target_graph = config.graph_for(target)
             direction = (conditioning, target)
             coupled_edges = set()
             coupled_instances = 0
             total_instances = 0
 
-            for edge in target_graph.templates:
+            for edge in actual_templates[target]:
                 context_groups = reachable_context_groups(
                     env,
                     conditioning,
@@ -130,10 +170,20 @@ def structural_coupling(env):
                     coupled_edges.add(edge)
                     coupled_instances += len(legal_contexts)
 
-            total_templates = len(target_graph.templates)
+            total_templates = len(actual_templates[target])
+            # 一个动作是一个可跨源状态复用的规则模式；每个不同的
+            # source-action-target 仍然保留为具体模板。
+            coupled_schemas = {edge.action for edge in coupled_edges}
+            total_schemas = len(
+                {edge.action for edge in actual_templates[target]}
+            )
             coupled_templates[direction] = coupled_edges
-            matrix[conditioning][target] = len(coupled_edges)
+            template_matrix[conditioning][target] = len(coupled_edges)
+            schema_matrix[conditioning][target] = len(coupled_schemas)
             direction_metrics[direction] = {
+                "coupled_schemas": len(coupled_schemas),
+                "total_schemas": total_schemas,
+                "schema_proportion": len(coupled_schemas) / total_schemas,
                 "coupled_templates": len(coupled_edges),
                 "total_templates": total_templates,
                 "coupled_instances": coupled_instances,
@@ -147,25 +197,23 @@ def structural_coupling(env):
                 "analysis_scope": "reachable_contexts",
             }
 
-    flat_counts = {}
+    template_counts = {}
+    schema_counts = {}
     for key in COUPLING_KEYS:
         source, target = key.split("_to_")
-        flat_counts[key] = matrix[source.upper()][target.upper()]
+        source = source.upper()
+        target = target.upper()
+        template_counts[key] = template_matrix[source][target]
+        schema_counts[key] = schema_matrix[source][target]
 
     return {
-        "matrix": matrix,
+        "template_matrix": template_matrix,
+        "schema_matrix": schema_matrix,
         "metrics": direction_metrics,
         "templates": coupled_templates,
-        "counts": flat_counts,
+        "template_counts": template_counts,
+        "schema_counts": schema_counts,
     }
-
-
-def deterministic_successor(env, state, action):
-    """取得确定性动作的唯一后继。"""
-    transitions = env.transitions(state, action)
-    if len(transitions) != 1 or transitions[0][0] != 1.0:
-        raise ValueError("factored task 分析要求确定性转移")
-    return transitions[0][1]
 
 
 def shortest_path_dag(env, initial_state):
@@ -220,18 +268,22 @@ def shortest_path_dag(env, initial_state):
     }
 
 
-def component_edge(config, state, action):
-    """取得联合动作对应的因子图实例边。"""
-    factor = config.factor_for_action(action)
+def component_edge(env, state, action):
+    """根据环境的实际后继取得联合动作对应的因子模板。"""
+    factor = env.config.factor_for_action(action)
     factor_index = FACTOR_ORDER.index(factor)
-    graph = config.graph_for(factor)
-    return graph.transition(state[factor_index], action)
+    next_state = deterministic_successor(env, state, action)
+    return DirectedTransition(
+        source=state[factor_index],
+        action=action,
+        target=next_state[factor_index],
+    )
 
 
-def path_coupling_increments(config, state, action, coupled_templates):
+def path_coupling_increments(env, state, action, coupled_templates):
     """返回一次实际动作对两个路径耦合指标的增量。"""
     increments = {"k_to_l": 0, "l_to_b": 0}
-    edge = component_edge(config, state, action)
+    edge = component_edge(env, state, action)
 
     for key in PATH_COUPLING_KEYS:
         conditioning, target = key.split("_to_")
@@ -309,7 +361,7 @@ def shortest_path_ranges(env, dag, coupled_templates):
             for action, next_state in dag["edges"].get(state, ()):
                 action_factor = config.factor_for_action(action)
                 increments = path_coupling_increments(
-                    config,
+                    env,
                     state,
                     action,
                     coupled_templates,
@@ -456,13 +508,21 @@ def analyze_task(config):
     query_initial_state = config.query_set[0]
     dag = shortest_path_dag(env, query_initial_state)
     path_analysis = shortest_path_ranges(env, dag, coupling["templates"])
+    coupling_detail = {}
+    for key in COUPLING_KEYS:
+        source, target = key.split("_to_")
+        coupling_detail[key] = coupling["metrics"][
+            (source.upper(), target.upper())
+        ]
 
     return {
         "anchor": config.task_name,
         "query_initial_state": query_initial_state,
-        "structural_coupling": coupling["counts"],
-        "structural_coupling_matrix": coupling["matrix"],
-        "coupling_metrics": coupling["metrics"],
+        "schema_coupling": coupling["schema_counts"],
+        "schema_coupling_matrix": coupling["schema_matrix"],
+        "template_coupling": coupling["template_counts"],
+        "template_coupling_matrix": coupling["template_matrix"],
+        "coupling_detail": coupling_detail,
         "optimal_length": dag["optimal_length"],
         "path_coupling_range": {
             "k_to_l": path_analysis["ranges"]["k_to_l"],
@@ -479,22 +539,26 @@ def analyze_task(config):
 def print_results(results):
     """打印任务书规定的四个 anchor 对比表。"""
     print(
-        "| anchor | K_K->L | K_L->B | L* | N_K->L range | "
-        "N_L->B range | D range | reachable states | "
+        "| anchor | S_K->L | S_L->B | K_K->L | K_L->B | L* | "
+        "N_K->L range | N_L->B range | D range | reachable states | "
         "shortest paths | PI/VI max diff |"
     )
     print(
-        "| --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: | ---: |"
+        "| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | "
+        "---: | ---: | ---: |"
     )
 
     for result in results:
-        counts = result["structural_coupling"]
+        schema_counts = result["schema_coupling"]
+        template_counts = result["template_coupling"]
         path_ranges = result["path_coupling_range"]
         solver = result["solver_comparison"]
         print(
             f"| {result['anchor']} "
-            f"| {counts['k_to_l']} "
-            f"| {counts['l_to_b']} "
+            f"| {schema_counts['k_to_l']} "
+            f"| {schema_counts['l_to_b']} "
+            f"| {template_counts['k_to_l']} "
+            f"| {template_counts['l_to_b']} "
             f"| {result['optimal_length']} "
             f"| {path_ranges['k_to_l']} "
             f"| {path_ranges['l_to_b']} "
@@ -504,21 +568,32 @@ def print_results(results):
             f"| {solver['pi_vi_max_diff']:.12g} |"
         )
 
-    print("\nTemplate and instance proportions (reachable contexts):")
+    print("\nStructural coupling detail (reachable contexts):")
+    print(
+        "| anchor | direction | schemas | total schemas | schema proportion | "
+        "templates | total templates | M | total instances | "
+        "template proportion | instance proportion |"
+    )
+    print(
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | "
+        "---: | ---: | ---: |"
+    )
     for result in results:
-        counts = result["structural_coupling"]
-        metrics = result["coupling_metrics"]
-        key_location = metrics[(KEY_FACTOR, LOCATION_FACTOR)]
-        location_beef = metrics[(LOCATION_FACTOR, BEEF_FACTOR)]
-        print(
-            f"{result['anchor']}: "
-            f"K->L={counts['k_to_l']}/{key_location['total_templates']} "
-            f"(template={key_location['template_proportion']:.3f}, "
-            f"instance={key_location['instance_proportion']:.3f}), "
-            f"L->B={counts['l_to_b']}/{location_beef['total_templates']} "
-            f"(template={location_beef['template_proportion']:.3f}, "
-            f"instance={location_beef['instance_proportion']:.3f})"
-        )
+        for direction in COUPLING_KEYS:
+            detail = result["coupling_detail"][direction]
+            print(
+                f"| {result['anchor']} "
+                f"| {direction} "
+                f"| {detail['coupled_schemas']} "
+                f"| {detail['total_schemas']} "
+                f"| {detail['schema_proportion']:.6f} "
+                f"| {detail['coupled_templates']} "
+                f"| {detail['total_templates']} "
+                f"| {detail['coupled_instances']} "
+                f"| {detail['total_instances']} "
+                f"| {detail['template_proportion']:.6f} "
+                f"| {detail['instance_proportion']:.6f} |"
+            )
 
     print("\nAction availability and branching:")
     for result in results:

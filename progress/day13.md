@@ -1,5 +1,7 @@
 # Day 13
 
+> 后续修订：本页记录的是 Day 13 当时“只限制两条 Beef 模板”的方案。该方案计数正确但任务语义不自然，Day 15 已改为全部 `cook` 模板要求厨房、全部 `cut` 模板要求案板，并区分 schema count $S$ 与 grounded template count $K$。当前实现和结果见 `progress/day15.md`。
+
 ## 今日目标
 
 实现四个 task anchors 和完整 structural coupling matrix（结构耦合矩阵），统一 transition template（转移模板）的计数口径，并验证门和功能区规则。

@@ -31,14 +31,12 @@ HEAD_WHITE = "head-white"
 TAIL_BLACK = "tail-black"
 TAIL_WHITE = "tail-white"
 
-HEAT = "heat"
-COOL = "cool"
-CHOP = "chop"
-STIR = "stir"
+COOK = "cook"
+CUT = "cut"
 
 LOCATION_ACTIONS = (UP, DOWN, LEFT, RIGHT)
 KEY_ACTIONS = (HEAD_BLACK, HEAD_WHITE, TAIL_BLACK, TAIL_WHITE)
-BEEF_ACTIONS = (HEAT, COOL, CHOP, STIR)
+BEEF_ACTIONS = (COOK, CUT)
 ACTION_ORDER = LOCATION_ACTIONS + KEY_ACTIONS + BEEF_ACTIONS
 
 
@@ -378,25 +376,17 @@ def _key_transitions() -> tuple[DirectedTransition, ...]:
 
 
 def _beef_transitions() -> tuple[DirectedTransition, ...]:
-    """建立 Beef 的 cooking 和 processing 变换边。"""
+    """建立 Beef 的烹饪和切割进度边。"""
     transitions = []
     for cooking, processing in BEEF_STATES:
         source = (cooking, processing)
         if cooking < 2:
             transitions.append(
-                DirectedTransition(source, HEAT, (cooking + 1, processing))
+                DirectedTransition(source, COOK, (cooking + 1, processing))
             )
-        if cooking > 0:
+        if processing < 2:
             transitions.append(
-                DirectedTransition(source, COOL, (cooking - 1, processing))
-            )
-        if processing == 0:
-            transitions.append(
-                DirectedTransition(source, CHOP, (cooking, 1))
-            )
-        if processing == 1:
-            transitions.append(
-                DirectedTransition(source, STIR, (cooking, 2))
+                DirectedTransition(source, CUT, (cooking, processing + 1))
             )
     return tuple(transitions)
 
@@ -480,8 +470,12 @@ DOOR_TRANSITIONS = tuple(
     for edge in LOCATION_GRAPH.transitions
     if make_undirected_edge(edge.source, edge.target) == DOOR_EDGE
 )
-E_KITCHEN = DirectedTransition((0, 0), HEAT, (1, 0))
-E_BOARD = DirectedTransition((0, 0), CHOP, (0, 1))
+COOK_TRANSITIONS = tuple(
+    edge for edge in BEEF_GRAPH.transitions if edge.action == COOK
+)
+CUT_TRANSITIONS = tuple(
+    edge for edge in BEEF_GRAPH.transitions if edge.action == CUT
+)
 
 KEY_DOOR_RULE = AvailabilityRule(
     name="white-key-door",
@@ -491,17 +485,17 @@ KEY_DOOR_RULE = AvailabilityRule(
     allowed_condition_states=frozenset({(2, 2)}),
 )
 KITCHEN_COOKING_RULE = AvailabilityRule(
-    name="kitchen-heat-gate",
+    name="kitchen-cook-gate",
     conditioning_factor=LOCATION_FACTOR,
     target_factor=BEEF_FACTOR,
-    controlled_transitions=(E_KITCHEN,),
+    controlled_transitions=COOK_TRANSITIONS,
     allowed_condition_states=frozenset({KITCHEN_LOCATION}),
 )
 BOARD_CUTTING_RULE = AvailabilityRule(
-    name="board-chop-gate",
+    name="board-cut-gate",
     conditioning_factor=LOCATION_FACTOR,
     target_factor=BEEF_FACTOR,
-    controlled_transitions=(E_BOARD,),
+    controlled_transitions=CUT_TRANSITIONS,
     allowed_condition_states=frozenset({BOARD_LOCATION}),
 )
 

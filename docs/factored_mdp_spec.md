@@ -20,10 +20,12 @@ $x=(l,c)$ 与 $x=(l,k,b)$ 表示同一状态。代码采用后者，保留 Key �
 | --- | --- | --- |
 | 可达联合状态图 | $G_{\mathcal X}$ | 以实际可达的 $x=(l,k,b)$ 为节点的有向转移图 |
 | 因子划分 | $\Pi^j$ | 固定另外两个因子、只改变因子 $j$ 得到的 cluster partition |
+| 因子 $j$ 的动作模式集合 | $R_j$ | Factor-$j$ 中唯一的动作名称集合 |
 | 因子 $j$ 的模板集合 | $E_j$ | 全部唯一的确定性有向三元组 $(s_j,a_j,s'_j)$ |
 | 有向转移模板 | $e_j=(s_j,a_j,s'_j)$ | 因子 $j$ 内的源状态、动作和目标状态规则 |
 | 耦合指示量 | $z_{i\to j}(e_j)$ | 模板 $e_j$ 的可执行性或结果是否随因子 $i$ 改变 |
-| 结构耦合数 | $K_{i\to j}$ | 受因子 $i$ 条件控制的唯一 factor-$j$ 模板数 |
+| Schema 耦合数 | $S_{i\to j}$ | 受因子 $i$ 条件控制的唯一 factor-$j$ 动作模式数 |
+| Template 耦合数 | $K_{i\to j}$ | 受因子 $i$ 条件控制的唯一 factor-$j$ 模板数 |
 | Context 实例数 | $M_{i\to j}$ | Coupled templates 在 factor-$i$ context 中的合法实例化次数 |
 | 路径使用次数 | $N_{i\to j}(\tau)$ | 轨迹 $\tau$ 实际执行 coupled factor-$j$ template 的次数 |
 | 最优原语长度 | $L^*(q)$ | Query $q$ 的最短动作数 |
@@ -42,10 +44,10 @@ $$
 按该定义，当前三张确定性 factor graph 的每条唯一有向边都是一个模板：
 
 $$
-|E_L|=20,\qquad |E_K|=24,\qquad |E_B|=18.
+|E_L|=20,\qquad |E_K|=24,\qquad |E_B|=12.
 $$
 
-完整联合状态中的具体转移是模板在某个 context 下的实例。模板可以跨 context 复用，但不能仅按 up、heat、cooking 或 cutting 等动作名称或语义类别合并。
+完整联合状态中的具体转移是模板在某个 context 下的实例。模板可以跨 context 复用，但不能仅按 `up`、`cook` 或 `cut` 等动作名称合并。动作名称本身构成更粗粒度的 schema，二者分别计数。
 
 ### 2.1 Location
 
@@ -109,12 +111,10 @@ $$
 
 | 动作 | 结果 | 合法条件 |
 | --- | --- | --- |
-| `heat` | $(b_c+1,b_d)$ | $b_c<2$ |
-| `cool` | $(b_c-1,b_d)$ | $b_c>0$ |
-| `chop` | $(b_c,1)$ | $b_d=0$ |
-| `stir` | $(b_c,2)$ | $b_d=1$ |
+| `cook` | $(b_c+1,b_d)$ | $b_c<2$ |
+| `cut` | $(b_c,b_d+1)$ | $b_d<2$ |
 
-cooking 轴可逆，processing 轴首版单向。功能区固定为
+两个轴均为单向阶段转移。对每个 processing 状态有两条 `cook` 边，对每个 cooking 状态有两条 `cut` 边，所以 Beef 图共有 6 条 `cook` templates 和 6 条 `cut` templates。功能区固定为
 
 $$
 l_{board}=(1,0),
@@ -122,21 +122,7 @@ l_{board}=(1,0),
 l_{kitchen}=(1,1).
 $$
 
-Beef 的位置谓词必须绑定到具体的有向模板，而不是绑定到整个动作名称或 cooking、cutting 语义类别。为保留首版 $K_{L\to B}=2$ 的 anchor，配置需要预先指定且只指定两条受控模板：
-
-$$
-e_{\mathrm{kitchen}}
-=
-(b^{\mathrm{cook}}_{\mathrm{src}},a_{\mathrm{cook}},b^{\mathrm{cook}}_{\mathrm{dst}}),
-$$
-
-$$
-e_{\mathrm{board}}
-=
-(b^{\mathrm{cut}}_{\mathrm{src}},a_{\mathrm{cut}},b^{\mathrm{cut}}_{\mathrm{dst}}).
-$$
-
-第一条只在 kitchen 实例化，第二条只在 board 实例化；其余 Beef templates 必须对 Location 保持不变。两条模板的具体源状态、动作和目标状态必须作为 task configuration 的显式设计变量，并在确定后固定。若将所有 `heat/cool` 和 `chop/stir` 边分别绑定到功能区，则按 $(s_B,a_B,s'_B)$ 定义会有多于两个 coupled templates，不满足 $K_{L\to B}=2$。Key 与 Beef 从初始状态起已经存在，地图不设置拾取点。
+启用位置门控时，全部 `cook` templates 只在 kitchen 实例化，全部 `cut` templates 只在 board 实例化。这样，操作语义和计数层级保持一致：位置控制两个 Beef schemas，所以 $S_{L\to B}=2$；这两个 schemas 展开为 12 条具体模板，所以 $K_{L\to B}=12$。Key 与 Beef 从初始状态起已经存在，地图不设置拾取点。
 
 ### 2.4 联合状态图、因子划分与状态抽象
 
@@ -228,7 +214,7 @@ BFS 必须保证：
 | `location_landmarks` | 起点、目标、案板和灶台的位置标记 |
 | `edge_landmarks` | 候选门边等边标记 |
 | `location_gates` | 受 Key predicate 控制的精确 Location template ID 或 $(s_L,a_L,s'_L)$ |
-| `beef_gates` | 受 Location predicate 控制的精确 Beef template ID 或 $(s_B,a_B,s'_B)$ |
+| `beef_gates` | 受 Location predicate 控制的一组精确 Beef templates；当前按 `cook` 和 `cut` schema 分组配置 |
 | `template_ids` | 三张图中每个唯一有向三元组的稳定标识；不得只使用动作类别作为模板标识 |
 | `initial_state` | $x_0$ |
 | `terminal_predicate` | $G(x)$ |
@@ -244,7 +230,7 @@ BFS 必须保证：
 ```text
 up, down, left, right,
 head-black, head-white, tail-black, tail-white,
-heat, cool, chop, stir
+cook, cut
 ```
 
 现有 `env/minecraft.py`、`env/mdp.py`、Policy Evaluation、PI 和 VI 保持不变。新环境实现既有 `MDP` 接口。
@@ -253,14 +239,14 @@ heat, cool, chop, stir
 
 四个 anchors 共用三张基础图、墙、门边、功能区、$x_0$、目标、动作成本和动作顺序，只切换跨因子谓词。
 
-| Anchor | $K_{K\to L}$ | $K_{L\to B}$ | 规则 |
-| --- | ---: | ---: | --- |
-| `independent` | 0 | 0 | Location 不读 Key；Beef 不读 Location |
-| `key_gates_location` | 2 | 0 | 双向门要求 $k=(2,2)$ |
-| `location_gates_beef` | 0 | 2 | 两条预先指定的 Beef 有向模板分别绑定 kitchen 与 board |
-| `combined` | 2 | 2 | 同时启用两类谓词 |
+| Anchor | $(S_{K\to L},S_{L\to B})$ | $(K_{K\to L},K_{L\to B})$ | 规则 |
+| --- | --- | --- | --- |
+| `independent` | (0, 0) | (0, 0) | Location 不读 Key；Beef 不读 Location |
+| `key_gates_location` | (2, 0) | (2, 0) | 双向门要求 $k=(2,2)$ |
+| `location_gates_beef` | (0, 2) | (0, 12) | 全部 `cook` templates 要求 kitchen；全部 `cut` templates 要求 board |
+| `combined` | (2, 2) | (2, 12) | 同时启用两类谓词 |
 
-从 $(2,0)$ 到 $(2,2)$ 的最短移动长度为 4，有两条 Location 最短路径：一条经过 board、kitchen 和门，另一条经过 kitchen 和门但跳过 board。Beef 初始状态 $(0,0)$ 的两条合法出边恰好是受控的 `heat` 与 `chop` templates，因此每条解都必须在 kitchen 或 board 执行其中之一；两种选择各自都能结合一条长度为 4 的 Location 路径。Key 目标需要 2 个动作，Beef 目标需要 4 个动作，因此四个 anchors 的设计预期为
+从 $(2,0)$ 到 $(2,2)$ 的最短移动长度为 4，并且可以依次经过 board、kitchen 和门。Key 目标需要 2 个动作；Beef 从 $(0,0)$ 到 $(2,2)$ 需要两次 `cook` 和两次 `cut`，共 4 个动作。位置门控启用时，这四个动作必须分别在对应功能区执行。因此四个 anchors 的设计预期为
 
 $$
 L^*=4+2+4=10.
@@ -284,7 +270,20 @@ $$
 
 比较两个 context 时，除因子 $i$ 外的其他条件必须相同。一个 context 中动作存在、另一个 context 中动作被省略，属于可执行性变化；同一个 $(s_j,a_j)$ 在不同 factor-$i$ context 中产生不同 $s'_j$，属于结果变化。若出现两个不同目标状态，相应的两个有向三元组分别进入 $E_j$，并分别标记为 coupled。
 
-结构耦合数为
+令 $R_j$ 是 factor-$j$ 的唯一 action schemas 集合。Schema-level coupling（动作模式层耦合）统计至少有一条具体模板受因子 $i$ 影响的动作名称：
+
+$$
+S_{i\to j}
+=
+\left|
+\left\{
+a_j\in R_j:\exists e_j\in E_j,
+\ e_j.action=a_j\land z_{i\to j}(e_j)=1
+\right\}
+\right|.
+$$
+
+Template-level coupling（模板层耦合）为
 
 $$
 K_{i\to j}
@@ -296,10 +295,20 @@ e_j\in E_j:z_{i\to j}(e_j)=1
 \right|.
 $$
 
-$K_{i\to j}$ 统计唯一的 coupled factor-$j$ templates，不统计动作名称、条件值数量、联合状态实例或路径执行次数。结构矩阵的行是条件因子，列是转移规律被改变的因子：
+$K_{i\to j}$ 统计唯一的 coupled factor-$j$ templates，不统计动作名称、条件值数量、联合状态实例或路径执行次数。$S$ 和 $K$ 分别形成一张方向矩阵；两张矩阵的行都是条件因子，列都是转移规律被改变的因子：
 
 $$
-\mathbf K_{\mathrm{struct}}
+\mathbf S_{\mathrm{schema}}
+=
+\begin{pmatrix}
+0 & S_{L\to K} & S_{L\to B}\\
+S_{K\to L} & 0 & S_{K\to B}\\
+S_{B\to L} & S_{B\to K} & 0
+\end{pmatrix}.
+$$
+
+$$
+\mathbf K_{\mathrm{template}}
 =
 \begin{pmatrix}
 0 & K_{L\to K} & K_{L\to B}\\
@@ -308,9 +317,9 @@ K_{B\to L} & K_{B\to K} & 0
 \end{pmatrix}.
 $$
 
-双向钥匙门对应两个不同方向的 Location templates，所以目标值 $K_{K\to L}=2$。在 $|E_B|=18$ 的定义下，要得到 $K_{L\to B}=2$，必须只有两条具体 Beef templates 受 Location 控制。此时 template proportion 是 $2/18$，不是按 cooking、cutting 两个动作类别计算的 $2/2$。
+双向钥匙门影响 `left` 和 `right` 两个 schemas，并对应两个具体 Location templates，所以 $S_{K\to L}=K_{K\to L}=2$。Beef 的两个 schemas 都受 Location 控制，但分别展开为 6 条模板，所以 $S_{L\to B}=2$、$K_{L\to B}=12$。前者回答“多少类操作受控”，后者回答“多少条具体转移受控”。
 
-### 7.2 Context 实例数与两种比例
+### 7.2 Context 实例数与三种比例
 
 结构模板数与这些模板出现于多少个条件 context 是两个量。定义
 
@@ -325,7 +334,13 @@ s_i:e_j\text{ 在 }s_i\text{ 下合法实例化}
 \right|.
 $$
 
-报告必须区分
+报告必须区分三个比例：
+
+$$
+\rho^{\mathrm{schema}}_{i\to j}
+=
+\frac{S_{i\to j}}{|R_j|},
+$$
 
 $$
 \rho^{\mathrm{template}}_{i\to j}
@@ -348,7 +363,7 @@ s_i:e_j\text{ 在 }s_i\text{ 下合法实例化}
 \right|}.
 $$
 
-前者描述 factor-$j$ 规则集中有多少比例需要 factor-$i$ 条件；后者描述具体可执行的 factor-$i$ context 实例中有多少比例属于 coupled templates。不得使用未注明分母的 coupling proportion。$M_{i\to j}$ 不是完整联合状态转移数量，也不额外乘以与该方向无关的第三个因子。
+$\rho^{\mathrm{schema}}$ 描述动作模式中受控的比例，$\rho^{\mathrm{template}}$ 描述具体因子内规则中受控的比例，$\rho^{\mathrm{instance}}$ 描述可执行 factor-$i$ context 实例中属于耦合模板的比例。不得使用未注明分母的 coupling proportion。$M_{i\to j}$ 不是完整联合状态转移数量，也不额外乘以与该方向无关的第三个因子。
 
 结构分析默认使用该 anchor 的可达联合状态图所支持的 context。若需要同时报告配置层面的理论计数，必须另设 analysis scope，并使用不同字段名，不能与 reachable-context count 混合。
 
@@ -389,15 +404,7 @@ $$
 \right].
 $$
 
-结构中存在但未被任何最短路径使用的 gate 会增加 $K_{i\to j}$，但该 query 的相应范围仍可为 $[0,0]$。当前实现使用
-
-$$
-e_{\mathrm{kitchen}}=((0,0),\texttt{heat},(1,0)),
-\qquad
-e_{\mathrm{board}}=((0,0),\texttt{chop},(0,1)).
-$$
-
-前者只在 kitchen、后者只在 board 实例化。二者是 $b=(0,0)$ 的全部合法出边，因此固定 query 的每条最短路径都至少使用其中一条；`location_gates_beef` 与 `combined` 的 $\mathcal R_{L\to B}$ 均为 $[1,1]$。这表示每条最短解确实需要一次 Location-conditioned Beef transition，但不需要两条都使用。
+结构中存在但未被任何最短路径使用的 gate 会增加 $S_{i\to j}$ 和 $K_{i\to j}$，但该 query 的相应范围仍可为 $[0,0]$。当前实现把全部 `cook` templates 绑定到 kitchen，把全部 `cut` templates 绑定到 board。固定 query 从 $b=(0,0)$ 到 $b=(2,2)$ 必须执行两次 `cook` 和两次 `cut`，所以 `location_gates_beef` 与 `combined` 的 $\mathcal R_{L\to B}$ 均为 $[4,4]$。
 
 动作域切换继续独立定义为
 
@@ -412,10 +419,13 @@ $$
 
 ### 7.4 分析输出字段
 
-每个非对角方向至少规划以下结构字段：
+每个非对角方向输出以下结构字段：
 
 | 字段 | 含义 |
 | --- | --- |
+| coupled_schemas | $S_{i\to j}$ |
+| total_schemas | $|R_j|$ |
+| schema_proportion | $\rho^{\mathrm{schema}}_{i\to j}$ |
 | coupled_templates | $K_{i\to j}$ |
 | total_templates | $|E_j|$ |
 | coupled_instances | $M_{i\to j}$ |
@@ -424,11 +434,11 @@ $$
 | instance_proportion | $\rho^{\mathrm{instance}}_{i\to j}$ |
 | analysis_scope | reachable_contexts 或明确命名的理论范围 |
 
-每个 query 另行记录 optimal_length、各活跃方向的 path_coupling_range、switch_range、最短路径数量和可达状态数。字段设计只规定数据含义，不代表当前实现已经产生或验证这些数值。
+每个 query 另行记录 optimal_length、各活跃方向的 path_coupling_range、switch_range、最短路径数量和可达状态数。当前实现已经产生这些字段，第 8 节记录已验证的结果。
 
-## 8. Day 11–12 验收与后续边界
+## 8. 当前验收结果
 
-- 三张因子图各有 9 个节点，且 $|E_L|=20$、$|E_K|=24$、$|E_B|=18$；
+- 三张因子图各有 9 个节点，且 $|E_L|=20$、$|E_K|=24$、$|E_B|=12$；
 - 同一状态和动作的合法性、转移及奖励不读取路径历史；
 - 每类动作只改变所属因子；
 - 无效动作不出现在 `actions(state)` 中；
@@ -436,34 +446,17 @@ $$
 - BFS 满足可达性、后继闭合性、断连排除和稳定顺序；
 - `independent` 不含跨因子依赖；
 - 通用配置保留 `location_gates` 和 `beef_gates`，在 `independent` 中二者均为空；
-- 环境代码不包含任务名或展示标签分支；
-- 既有 48 项测试继续通过。
+- 环境代码不包含任务名或展示标签分支。
 
-旧版 Day 13–14 曾记录以下结果：
+当前验证结果如下：
 
-1. 钥匙门同时要求 $k_h=2$ 与 $k_t=2$，通过门时只改变 $l$。
-2. cooking 只在 kitchen 可用，cutting 只在 board 可用，动作只改变 Beef 的对应维度。
-3. 旧计数口径下，四个 anchors 的结构耦合矩阵与原目标表一致。
-4. shortest-path DAG 能够在不保存全部路径的情况下计算路径数量、耦合范围和动作域切换范围。
-5. 旧配置下四个 anchors 的 $L^*$ 均为 10；最短路径数依次记录为 75600、30240、180 和 60。
-6. PI 与 VI 在每个环境的全部可达状态上价值一致，不同策略动作可由并列最优解释。
+| anchor | $(S_{K\to L},S_{L\to B})$ | $(K_{K\to L},K_{L\to B})$ | $L^*$ | $\mathcal R_{K\to L}$ | $\mathcal R_{L\to B}$ | $\mathcal R_D$ | reachable states | shortest paths |
+| --- | --- | --- | ---: | --- | --- | --- | ---: | ---: |
+| `independent` | (0, 0) | (0, 0) | 10 | [0, 0] | [0, 0] | [2, 9] | 729 | 75600 |
+| `key_gates_location` | (2, 0) | (2, 0) | 10 | [1, 1] | [0, 0] | [2, 9] | 594 | 30240 |
+| `location_gates_beef` | (0, 2) | (0, 12) | 10 | [0, 0] | [4, 4] | [5, 8] | 729 | 90 |
+| `combined` | (2, 2) | (2, 12) | 10 | [1, 1] | [4, 4] | [5, 8] | 594 | 56 |
 
-这些历史结果不是新口径的验证证据。尤其是第 2、3、5 项使用了按 cooking、cutting 动作类别合并模板的旧设计，不能直接证明新的 $(s_j,a_j,s'_j)$ 计数满足 $K_{L\to B}=2$。
+在 $K\to L$ 方向，schema、template 和 instance 计数分别为 $2/4$、$2/20$ 和 $2/144$。在 $L\to B$ 方向，三者分别为 $2/2$、$12/12$ 和 $12/12$。其余四个非对角方向均为 0。四个 anchors 的 PI 与 VI 在全部可达状态上的最大价值差均为 0，策略差异均可由并列最优动作解释。
 
-已完成的实现同步：
-
-1. `DirectedTransition` 本身即是 template，稳定展示 ID 从三元组派生；三张图的模板数为 $20/24/18$。
-2. 配置固定上述两个精确 Beef templates，因而 `location_gates_beef` 与 `combined` 均有 $K_{L\to B}=2$。
-3. 分析器在 reachable-context scope 下枚举六个非对角方向、保持第三因子不变地比较转移结果，输出 $z$ 导出的 $K$、$M$、两种比例和总实例数。
-4. `query_set` 首版固定为 $(x_0,)$；四个 anchors 都重新求解，$L^*=10$ 保持匹配。
-
-新口径下的验证结果如下：
-
-| anchor | $K_{K\to L}$ | $K_{L\to B}$ | $L^*$ | $\mathcal R_{K\to L}$ | $\mathcal R_{L\to B}$ | $\mathcal R_D$ | reachable states | shortest paths |
-| --- | ---: | ---: | ---: | --- | --- | --- | ---: | ---: |
-| `independent` | 0 | 0 | 10 | [0, 0] | [0, 0] | [2, 9] | 729 | 75600 |
-| `key_gates_location` | 2 | 0 | 10 | [1, 1] | [0, 0] | [2, 9] | 594 | 30240 |
-| `location_gates_beef` | 0 | 2 | 10 | [0, 0] | [1, 1] | [3, 9] | 729 | 10800 |
-| `combined` | 2 | 2 | 10 | [1, 1] | [1, 1] | [3, 9] | 594 | 4068 |
-
-在激活方向上，$M_{K\to L}=2$、总可执行实例数为 144；$M_{L\to B}=2$、总可执行实例数为 146。因此 template proportion 分别为 $2/20$ 和 $2/18$，instance proportion 分别为 $2/144$ 和 $2/146$。其余四个非对角方向均为 0。PI 与 VI 在全部可达状态的价值差均为 0，策略差异均可由并列最优动作解释。
+上述代码修改后，环境与分析专项测试共 18 项、完整测试共 66 项，均已通过。文档同步没有重复运行这些测试。
