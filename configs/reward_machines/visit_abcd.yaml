@@ -1,0 +1,21 @@
+name: Visit A B C D
+description: 依次访问 A、B、C、D；进入终止状态奖励 1，其余 0。
+initial_state: v0
+terminal_states: [v4]
+transitions:
+  - from: v0
+    match: [A]
+    to: v1
+    reward: 0
+  - from: v1
+    match: [B]
+    to: v2
+    reward: 0
+  - from: v2
+    match: [C]
+    to: v3
+    reward: 0
+  - from: v3
+    match: [D]
+    to: v4
+    reward: 1

@@ -1,0 +1,13 @@
+name: Coffee to Office
+description: 取得 coffee 后送达 office；进入终止状态奖励 1，其余 0。
+initial_state: u0
+terminal_states: [u2]
+transitions:
+  - from: u0
+    match: [coffee]
+    to: u1
+    reward: 0
+  - from: u1
+    match: [office]
+    to: u2
+    reward: 1
