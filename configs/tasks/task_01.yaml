@@ -1,0 +1,43 @@
+condition: A
+name: Sequential Task
+instruction: Get the key, open the door, get the beef, cook it, then reach the goal.
+
+initial_state: u0
+terminal_states: [u5]
+
+states:
+  - id: u0
+    label: Start
+    position: [0, 0]
+  - id: u1
+    label: Key acquired
+    position: [1, 0]
+  - id: u2
+    label: Door opened
+    position: [1, 1]
+  - id: u3
+    label: Beef acquired
+    position: [0, 1]
+  - id: u4
+    label: Cooked
+    position: [0, 2]
+  - id: u5
+    label: Goal
+    position: [1, 2]
+
+transitions:
+  - from: u0
+    event: GET_KEY
+    to: u1
+  - from: u1
+    event: OPEN_DOOR
+    to: u2
+  - from: u2
+    event: GET_BEEF
+    to: u3
+  - from: u3
+    event: COOK
+    to: u4
+  - from: u4
+    event: REACH_GOAL
+    to: u5
