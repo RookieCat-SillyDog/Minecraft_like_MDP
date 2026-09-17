@@ -28,31 +28,68 @@ python -m task_fsm_demo.main --condition B --participant sub001
 python -B -m unittest discover -s tests -p "test_*.py"
 ```
 
-当前测试覆盖 GridWorld、事件标注、Task FSM 和 A/B 两类完整路线，不依赖 PsychoPy。
+## Reward Machine 最小复现
+
+已实现RM 表示、OfficeWorld、Product MDP、Value Iteration、策略对比图，以及 Q-learning 与 QRM 学习对照。
+
+### 依赖
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+核心依赖：PyYAML、numpy、matplotlib、pytest、nbconvert 和 ipykernel。PsychoPy 仅 Demo 需要，使用独立 `week4-demo` 环境。
+
+### 重建策略图
+
+```powershell
+python -m experiments.make_policy_figure   # 输出 figures/policy_comparison.svg 和 .png
+```
+
+### 重建学习曲线与原始结果
+
+```powershell
+python -m experiments.make_learning_curves
+```
+
+该命令运行10个随机种子、两个任务和两种方法，输出：
+
+- `experiments/results/learning_curves.csv`
+- `figures/learning_curves_coffee_office.{svg,png}`
+- `figures/learning_curves_visit_abcd.{svg,png}`
+
+### 从头执行笔记本
+
+```powershell
+cd notebooks
+python -m nbconvert --to notebook --execute --inplace 01_reward_machine.ipynb
+```
+
 
 ## 当前结构
 
 ```text
 src/
 ├── config.py
-├── envs/minecraft_grid.py
-└── task_fsm/
-    ├── fsm.py
-    └── labeling.py
+├── envs/{minecraft_grid,officeworld}.py
+├── task_fsm/{fsm,labeling,reward_machine}.py
+└── algorithms/{product_mdp,value_iteration,q_learning,qrm}.py
 
 configs/
-├── maps/map_01.yaml
-└── tasks/
-    ├── task_01.yaml
-    └── task_02.yaml
+├── maps/{map_01,officeworld_minimal}.yaml
+├── tasks/{task_01,task_02}.yaml
+└── reward_machines/{coffee_office,visit_abcd}.yaml
 
-task_fsm_demo/
-├── main.py
-├── display/
-├── experiment/
-└── data/
+tests/   test_gridworld, test_event_detector, test_fsm, test_routes,
+         test_reward_machine, test_officeworld, test_value_iteration,
+         test_q_learning, test_qrm
 
-tests/
+experiments/make_policy_figure.py    重建策略对比图
+experiments/make_learning_curves.py  重建学习曲线与逐种子 CSV
+notebooks/01_reward_machine.ipynb    RM 复现笔记本
+figures/policy_comparison.{svg,png}   状态价值热力图与最优策略对比
+figures/learning_curves_*.{svg,png}   Q-learning 与 QRM 学习曲线
+notes/paper_01_reward_machine.md      实验定义与验收
+
+task_fsm_demo/   PsychoPy 演示（依赖 week4-demo 环境）
 ```
-
-后续 Reward Machine、Product MDP 和 QRM 实现在 `src/` 中扩展；PsychoPy 显示与实验记录继续留在 `task_fsm_demo/`。

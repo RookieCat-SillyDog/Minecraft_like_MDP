@@ -2,3 +2,6 @@ matplotlib==3.8.0
 numpy==1.26.4
 PyYAML==6.0.3
 pytest==7.4.0
+nbconvert==7.10.0
+ipykernel==6.28.0
+jupyterlab==4.0.11

@@ -1,12 +1,6 @@
 """Task FSM Demo 启动入口。"""
 
 import argparse
-import sys
-from pathlib import Path
-
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 def parse_args():
