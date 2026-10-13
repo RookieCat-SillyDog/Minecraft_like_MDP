@@ -1,6 +1,3 @@
-"""配置驱动的有限状态 Reward Machine。"""
-
-
 class RewardMachine:
     def __init__(self, definition):
         self.initial_state = definition["initial_state"]
@@ -19,7 +16,7 @@ class RewardMachine:
         return u in self.terminal_states
 
     def next_state(self, u, label_set):
-        """终止状态吸收；没有匹配事件时保持原状态。"""
+        """任务状态推进"""
         if u in self.terminal_states:
             return u, 0
         labels = set(label_set)

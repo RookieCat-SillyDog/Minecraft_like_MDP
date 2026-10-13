@@ -26,6 +26,39 @@ def load_officeworld_config() -> dict:
     return _load_yaml(MAP_DIR / "officeworld_minimal.yaml")
 
 
+def load_hrm_craftworld_config() -> dict:
+    return _load_yaml(MAP_DIR / "hrm_craftworld_book.yaml")
+
+
+def load_pacman_delivery_config() -> dict:
+    grid = _load_yaml(MAP_DIR / "pacman_delivery.yaml")["grid"]
+    landmark_symbols = {
+        "a": "p_a",
+        "b": "p_b",
+        "c": "p_c",
+        "A": "d_a",
+        "B": "d_b",
+        "C": "d_c",
+    }
+    walls = []
+    landmarks = {}
+    for row, cells in enumerate(grid):
+        for col, symbol in enumerate(cells):
+            if symbol == "#":
+                walls.append([row, col])
+            elif symbol == "S":
+                start = [row, col]
+            elif symbol in landmark_symbols:
+                landmarks[landmark_symbols[symbol]] = [row, col]
+    return {
+        "rows": len(grid),
+        "cols": len(grid[0]),
+        "walls": walls,
+        "start": start,
+        "landmarks": landmarks,
+    }
+
+
 def load_task_config(condition: str) -> dict:
     return _load_yaml(TASK_DIR / TASK_FILES[condition.upper()])
 

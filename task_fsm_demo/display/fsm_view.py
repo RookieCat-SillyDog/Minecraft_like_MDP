@@ -1,4 +1,4 @@
-"""右侧 Task FSM 的 PsychoPy 绘制。"""
+"""右侧 Reward Machine 的 PsychoPy 绘制。"""
 
 from math import atan2, cos, sin
 
@@ -79,7 +79,7 @@ class FSMView:
         ).draw()
 
     def draw(self, definition, current_state, last_transition=None):
-        """根据任务定义绘制 FSM"""
+        """根据任务定义绘制 Reward Machine。"""
         visual.Line(
             self.window,
             start=(0, -0.48),
@@ -89,7 +89,7 @@ class FSMView:
         ).draw()
         visual.TextStim(
             self.window,
-            text="Abstract Task State Space / FSM",
+            text="Abstract Task State Space / Reward Machine",
             pos=((self.left + self.right) / 2, 0.43),
             height=0.036,
             color="white",
@@ -97,15 +97,16 @@ class FSMView:
 
         positions = self._node_positions(definition)
         for transition in definition["transitions"]:
+            event = " & ".join(transition["match"])
             transition_key = (
                 transition["from"],
-                transition["event"],
+                event,
                 transition["to"],
             )
             self._draw_arrow(
                 positions[transition["from"]],
                 positions[transition["to"]],
-                transition["event"],
+                event,
                 transition_key == last_transition,
             )
 

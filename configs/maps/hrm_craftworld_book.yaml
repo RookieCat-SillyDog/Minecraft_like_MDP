@@ -1,0 +1,17 @@
+name: HRM CraftWorld Book
+description: >-
+  7x7 open plan（仿 Icarte/Vaezipoor CraftWorld book 任务，open_plan 7x7
+  固定对称布局）；无内部墙；s 仅为位置，landmarks 即命题-坐标映射。
+  工作台在中心，甘蔗/兔子/桌子分居三个角，两条分支（先做 paper 或
+  先做 leather）代价对称，起点在第四角。
+rows: 7
+cols: 7
+start: [0, 0]
+
+walls: []
+
+landmarks:
+  sugarcane: [0, 6]
+  rabbit: [6, 0]
+  workbench: [3, 3]
+  table: [6, 6]

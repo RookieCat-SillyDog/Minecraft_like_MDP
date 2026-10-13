@@ -27,17 +27,22 @@ states:
 
 transitions:
   - from: u0
-    event: GET_KEY
+    match: [GET_KEY]
     to: u1
+    reward: 0
   - from: u1
-    event: OPEN_DOOR
+    match: [OPEN_DOOR]
     to: u2
+    reward: 0
   - from: u2
-    event: GET_BEEF
+    match: [GET_BEEF]
     to: u3
+    reward: 0
   - from: u3
-    event: COOK
+    match: [COOK]
     to: u4
+    reward: 0
   - from: u4
-    event: REACH_GOAL
+    match: [REACH_GOAL]
     to: u5
+    reward: 1

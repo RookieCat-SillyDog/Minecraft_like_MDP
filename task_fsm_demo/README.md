@@ -1,6 +1,6 @@
-# Navigation × Task FSM Demo
+# Navigation × Reward Machine Demo
 
-这是一个使用 PsychoPy 实现的双空间任务演示：左侧是 Physical / Navigation State Space（物理导航状态空间），右侧是 Abstract Task State Space（抽象任务状态空间）。参与者通过方向键在地图中移动；地图变化产生符号事件，事件驱动右侧 Task FSM（任务有限状态机）转移。
+这是一个使用 PsychoPy 实现的双空间任务演示：左侧是 Physical / Navigation State Space（物理导航状态空间），右侧是 Abstract Task State Space（抽象任务状态空间）。参与者通过方向键在地图中移动；地图变化产生符号事件，事件驱动右侧 Reward Machine（奖励机）转移并产生奖励。
 
 核心流程：
 
@@ -8,7 +8,7 @@
 keyboard action
 → GridWorld transition
 → symbolic event detection
-→ Task FSM transition
+→ Reward Machine transition and reward
 → display update
 → CSV log
 ```
@@ -58,13 +58,6 @@ python -m task_fsm_demo.main --condition A --participant sub001
 
 ```powershell
 python -m task_fsm_demo.main --help
-```
-
-原有的目录内启动方式仍然可用：
-
-```powershell
-cd task_fsm_demo
-python main.py
 ```
 
 ## 操作
@@ -126,7 +119,9 @@ v0 Start                                         v5 Goal
                     GET_BEEF      COOK
 ```
 
-第一个被 FSM 接受的 `GET_KEY` 或 `GET_BEEF` 决定当前分支。进入一条分支后，另一条分支的事件仍可能由环境产生，但不会推进任务状态。
+第一个被 RM 接受的 `GET_KEY` 或 `GET_BEEF` 决定当前分支。进入一条分支后，另一条分支的事件仍可能由环境产生，但不会推进任务状态。
+
+两项任务都只在进入终止状态时产生奖励 `1`，其他转移的奖励为 `0`。
 
 ## 配置坐标的含义
 
@@ -138,8 +133,8 @@ map_01.yaml 中的 start、walls、objects
 → GridWorld 使用
 
 task_01.yaml / task_02.yaml 中 states.position
-→ FSM 节点的绘图布局坐标 [x, y]
-→ 只有 FSMView 使用
+→ RM 节点的绘图布局坐标 [x, y]
+→ 只有右侧任务状态图使用
 ```
 
 ## 事件规则
@@ -154,7 +149,7 @@ COOK
 REACH_GOAL
 ```
 
-越界、撞墙或无钥匙撞门仍会记录动作，但不产生事件。提前到达目标只产生 `REACH_GOAL`；如果当前 FSM 没有相应转移，任务状态保持不变。
+越界、撞墙或无钥匙撞门仍会记录动作，但不产生事件。提前到达目标只产生 `REACH_GOAL`；如果当前 RM 状态没有相应转移，任务状态保持不变。
 
 钥匙、牛肉、厨房和目标是可重复进入的事件地点。离开后重新进入可以再次产生相应地点事件。`OPEN_DOOR` 只在门从关闭变为打开时产生一次。
 
@@ -179,14 +174,15 @@ record_type
 trial_status
 navigation_state_before
 navigation_state_after
-fsm_state_before
-fsm_state_after
+rm_state_before
+rm_state_after
 action
 event
+reward
 RT
 ```
 
-`record_type` 区分 `start`、`action`、`complete`、`reset`、`switch` 和 `exit`。环境状态以 JSON 保存。撞墙动作也会产生一条 `action` 记录。
+`record_type` 区分 `start`、`action`、`complete`、`reset`、`switch` 和 `exit`。环境状态以 JSON 保存，动作统一记录为 `U`、`D`、`L`、`R`。撞墙动作也会产生一条 `action` 记录。
 
 ## 代码结构
 
@@ -196,8 +192,9 @@ src/
 ├── envs/
 │   └── minecraft_grid.py
 └── task_fsm/
-    ├── fsm.py
-    └── labeling.py
+    ├── fsm.py              # 暂时保留的旧实现
+    ├── labeling.py
+    └── reward_machine.py   # Demo 当前使用
 
 configs/
 ├── maps/map_01.yaml

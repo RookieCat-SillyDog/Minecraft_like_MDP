@@ -1,8 +1,9 @@
 """QRM 反事实更新和训练测试。"""
 
 import unittest
+from unittest.mock import patch
 
-from src.algorithms.q_learning import init_Q, q_update
+from src.algorithms.q_learning import evaluate, init_Q, q_update
 from src.algorithms.qrm import qrm_update, train_qrm
 from src.config import load_officeworld_config, load_reward_machine_config
 from src.envs.officeworld import OfficeWorld
@@ -44,7 +45,8 @@ class TestQRM(unittest.TestCase):
             Q[((3, 2), "u0")]["D"] = 0.1
 
         q_update(
-            Q_ql, (3, 2), "u0", "D", 0.0, (4, 2), "u1", False, 0.1, 0.99
+            Q_ql, ((3, 2), "u0"), "D", 0.0, ((4, 2), "u1"),
+            False, 0.1, 0.99,
         )
         qrm_update(
             Q_qrm, rm, (3, 2), "D", (4, 2), {"coffee"}, 0.1, 0.99
@@ -85,6 +87,19 @@ class TestQRM(unittest.TestCase):
             eval_every=100, eval_episodes=5, max_steps=50, seed=0,
         )
         self.assertEqual(Q_50, Q_100)
+
+    def test_training_and_evaluation_can_use_different_step_limits(self):
+        env, rm = load_task()
+        with patch("src.algorithms.qrm.evaluate", wraps=evaluate) as evaluation:
+            Q, log = train_qrm(
+                env, rm, env.start, n_interactions=12, eval_every=4,
+                eval_episodes=1, max_steps=6, eval_max_steps=2, seed=0)
+        self.assertEqual([call.args[5] for call in evaluation.call_args_list], [2, 2, 2])
+        self.assertEqual([row["mean_steps"] for row in log], [2, 2, 2])
+        expected, _ = train_qrm(
+            env, rm, env.start, n_interactions=12, eval_every=13,
+            max_steps=6, seed=0)
+        self.assertEqual(Q, expected)
 
     def test_learns_visit_abcd(self):
         env, rm = load_task("visit_abcd")

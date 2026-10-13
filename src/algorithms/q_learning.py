@@ -13,23 +13,24 @@ def init_Q(env, rm, q_init=0.0):
     return Q
 
 
-def select_action(Q, s, u, epsilon, actions, rng):
+def select_action(Q, state_key, epsilon, actions, rng):
     """ε-greedy；并列最优动作随机选择。"""
     if rng.random() < epsilon:
         return rng.choice(actions)
-    qsa = Q[(s, u)]
+    qsa = Q[state_key]
     qmax = max(qsa.values())
     best = [a for a in actions if qsa[a] == qmax]
     return rng.choice(best)
 
 
-def q_update(Q, s, u, a, r, s_next, u_next, terminal, alpha, gamma):
+def q_update(Q, state_key, action, reward, next_state_key, terminal,
+             alpha, gamma):
     # 终止转移没有后续状态价值。
     if terminal:
-        target = r
+        target = reward
     else:
-        target = r + gamma * max(Q[(s_next, u_next)].values())
-    Q[(s, u)][a] += alpha * (target - Q[(s, u)][a])
+        target = reward + gamma * max(Q[next_state_key].values())
+    Q[state_key][action] += alpha * (target - Q[state_key][action])
 
 
 def evaluate(Q, env, rm, start, n_episodes, max_steps, gamma, rng):
@@ -82,10 +83,10 @@ def train_q_learning(env, rm, start, n_interactions, eval_every=500,
             and episode_steps < max_steps
             and not rm.is_terminal(u)
         ):
-            a = select_action(Q, s, u, epsilon, env.actions, train_rng)
+            a = select_action(Q, (s, u), epsilon, env.actions, train_rng)
             s_next, u_next, reward, terminal = transition(env, rm, s, u, a)
             q_update(
-                Q, s, u, a, reward, s_next, u_next, terminal, alpha, gamma
+                Q, (s, u), a, reward, (s_next, u_next), terminal, alpha, gamma
             )
             s, u = s_next, u_next
             interaction += 1

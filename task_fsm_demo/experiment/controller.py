@@ -1,20 +1,25 @@
-"""PsychoPy 输入、环境、Task FSM、显示和日志的控制流程。"""
+"""PsychoPy 输入、环境、Reward Machine、显示和日志的控制流程。"""
 
 from psychopy import core
 from psychopy.hardware.keyboard import Keyboard
 
 from src.config import load_map_config, load_task_config
 from src.envs.minecraft_grid import GridWorld
-from src.task_fsm.fsm import TaskFSM
 from src.task_fsm.labeling import detect_events
+from src.task_fsm.reward_machine import RewardMachine
 from task_fsm_demo.display.fsm_view import FSMView
 from task_fsm_demo.display.hud import HUD
 from task_fsm_demo.display.navigation_view import NavigationView
 from task_fsm_demo.experiment.logger import ExperimentLogger
 
 
-DIRECTION_KEYS = ["up", "down", "left", "right"]
-RESPONSE_KEYS = DIRECTION_KEYS + ["r", "1", "2", "escape"]
+KEY_TO_ACTION = {
+    "up": "U",
+    "down": "D",
+    "left": "L",
+    "right": "R",
+}
+RESPONSE_KEYS = list(KEY_TO_ACTION) + ["r", "1", "2", "escape"]
 
 
 class ExperimentController:
@@ -24,7 +29,8 @@ class ExperimentController:
         map_config = load_map_config()
         self.task_definition = load_task_config(self.condition)
         self.environment = GridWorld(map_config)
-        self.fsm = TaskFSM(self.task_definition)
+        self.rm = RewardMachine(self.task_definition)
+        self.u = self.rm.reset()
 
         self.navigation_view = NavigationView(window, map_config)
         self.fsm_view = FSMView(window)
@@ -62,14 +68,14 @@ class ExperimentController:
                     self._start_new_trial("A", "switch", key)
                 elif key == "2":
                     self._start_new_trial("B", "switch", key)
-                elif key in DIRECTION_KEYS and not self.fsm.is_terminal:
-                    self._move(key, response.rt)
+                elif key in KEY_TO_ACTION and not self.rm.is_terminal(self.u):
+                    self._move(KEY_TO_ACTION[key], response.rt)
         finally:
             self.logger.close()
 
     def _move(self, action, rt):
         navigation_before = self.environment.state
-        fsm_before = self.fsm.current_state
+        u_before = self.u
 
         navigation_after = self.environment.step(action)
         events = detect_events(
@@ -77,16 +83,16 @@ class ExperimentController:
             navigation_after,
             self.environment.objects,
         )
-        fsm_after = self.fsm.step(events)
+        self.u, reward = self.rm.next_state(self.u, events)
         event_name = next(iter(events), "")
         self.recent_event = event_name
         self.last_transition = None
-        if fsm_after != fsm_before:
-            self.last_transition = (fsm_before, event_name, fsm_after)
+        if self.u != u_before:
+            self.last_transition = (u_before, event_name, self.u)
         self.step += 1
 
         self._draw_frame()
-        status = "completed" if self.fsm.is_terminal else "ongoing"
+        status = "completed" if self.rm.is_terminal(self.u) else "ongoing"
         self.logger.log(
             condition=self.condition,
             trial=self.trial,
@@ -95,14 +101,15 @@ class ExperimentController:
             trial_status=status,
             navigation_state_before=navigation_before,
             navigation_state_after=navigation_after,
-            fsm_state_before=fsm_before,
-            fsm_state_after=fsm_after,
+            rm_state_before=u_before,
+            rm_state_after=self.u,
             action=action,
             event=event_name,
+            reward=reward,
             rt=rt,
         )
 
-        if self.fsm.is_terminal:
+        if self.rm.is_terminal(self.u):
             self._log_control("complete", "")
 
     def _start_new_trial(self, condition, record_type, action):
@@ -113,7 +120,8 @@ class ExperimentController:
         self.condition = condition
         self.task_definition = load_task_config(condition)
         self.environment.reset()
-        self.fsm = TaskFSM(self.task_definition)
+        self.rm = RewardMachine(self.task_definition)
+        self.u = self.rm.reset()
         self.recent_event = ""
         self.last_transition = None
 
@@ -124,13 +132,13 @@ class ExperimentController:
         self.navigation_view.draw(self.environment.state)
         self.fsm_view.draw(
             self.task_definition,
-            self.fsm.current_state,
+            self.u,
             self.last_transition,
         )
         self.hud.draw(
             self.task_definition,
             self.recent_event,
-            self.fsm.is_terminal,
+            self.rm.is_terminal(self.u),
         )
         self.window.callOnFlip(self.response_clock.reset)
         self.window.callOnFlip(self.keyboard.clearEvents)
@@ -144,11 +152,11 @@ class ExperimentController:
             record_type="start",
             trial_status="ongoing",
             navigation_state_after=self.environment.state,
-            fsm_state_after=self.fsm.current_state,
+            rm_state_after=self.u,
         )
 
     def _log_control(self, record_type, action):
-        status = "completed" if self.fsm.is_terminal else "aborted"
+        status = "completed" if self.rm.is_terminal(self.u) else "aborted"
         state = self.environment.state
         self.logger.log(
             condition=self.condition,
@@ -158,7 +166,7 @@ class ExperimentController:
             trial_status=status,
             navigation_state_before=state,
             navigation_state_after=state,
-            fsm_state_before=self.fsm.current_state,
-            fsm_state_after=self.fsm.current_state,
+            rm_state_before=self.u,
+            rm_state_after=self.u,
             action=action,
         )

@@ -1,11 +1,11 @@
-"""Task FSM Demo 启动入口。"""
+"""Reward Machine Demo 启动入口。"""
 
 import argparse
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run the Navigation and Task FSM demo."
+        description="Run the Navigation and Reward Machine demo."
     )
     parser.add_argument(
         "--condition",

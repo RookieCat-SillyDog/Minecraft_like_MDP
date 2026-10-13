@@ -1,0 +1,39 @@
+name: HRM CraftWorld Book
+description: >-
+  先做纸（甘蔗→工作台）或皮革（兔子→工作台），两者任意顺序，
+  最后到桌子合成书；进入终止状态奖励 1，其余 0。
+initial_state: v0
+terminal_states: [v7]
+transitions:
+  - from: v0
+    match: [sugarcane]
+    to: v1
+    reward: 0
+  - from: v0
+    match: [rabbit]
+    to: v3
+    reward: 0
+  - from: v1
+    match: [workbench]
+    to: v2
+    reward: 0
+  - from: v2
+    match: [rabbit]
+    to: v5
+    reward: 0
+  - from: v3
+    match: [workbench]
+    to: v4
+    reward: 0
+  - from: v4
+    match: [sugarcane]
+    to: v5
+    reward: 0
+  - from: v5
+    match: [workbench]
+    to: v6
+    reward: 0
+  - from: v6
+    match: [table]
+    to: v7
+    reward: 1

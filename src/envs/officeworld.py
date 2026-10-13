@@ -1,5 +1,3 @@
-"""确定性四邻接 OfficeWorld。"""
-
 ACTION_DELTAS = {
     "U": (-1, 0),
     "D": (1, 0),

@@ -1,15 +1,16 @@
 """5x5 网格世界环境。
 """
-
-ACTIONS = {
-    "up": (-1, 0),
-    "down": (1, 0),
-    "left": (0, -1),
-    "right": (0, 1),
+ACTION_DELTAS = {
+    "U": (-1, 0),
+    "D": (1, 0),
+    "L": (0, -1),
+    "R": (0, 1),
 }
 
 
 class GridWorld:
+    actions = tuple(ACTION_DELTAS)
+
     def __init__(self, map_config):
         self.rows = map_config["rows"]
         self.cols = map_config["cols"]
@@ -31,7 +32,7 @@ class GridWorld:
 
     def step(self, action):
         """执行一次移动并更新"""
-        drow, dcol = ACTIONS[action]
+        drow, dcol = ACTION_DELTAS[action]
         target = (self.position[0] + drow, self.position[1] + dcol)
 
         if not self._can_enter(target):

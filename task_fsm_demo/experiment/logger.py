@@ -17,10 +17,11 @@ FIELDNAMES = [
     "trial_status",
     "navigation_state_before",
     "navigation_state_after",
-    "fsm_state_before",
-    "fsm_state_after",
+    "rm_state_before",
+    "rm_state_after",
     "action",
     "event",
+    "reward",
     "RT",
 ]
 
@@ -53,10 +54,11 @@ class ExperimentLogger:
         trial_status,
         navigation_state_before=None,
         navigation_state_after=None,
-        fsm_state_before="",
-        fsm_state_after="",
+        rm_state_before="",
+        rm_state_after="",
         action="",
         event="",
+        reward="",
         rt=None,
     ):
         """写入一条动作或 trial 控制记录。"""
@@ -77,10 +79,11 @@ class ExperimentLogger:
             "navigation_state_after": self._serialize_state(
                 navigation_state_after
             ),
-            "fsm_state_before": fsm_state_before,
-            "fsm_state_after": fsm_state_after,
+            "rm_state_before": rm_state_before,
+            "rm_state_after": rm_state_after,
             "action": action,
             "event": event,
+            "reward": reward,
             "RT": "" if rt is None else f"{rt:.6f}",
         }
         self.writer.writerow(row)

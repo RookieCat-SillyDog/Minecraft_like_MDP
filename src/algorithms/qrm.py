@@ -11,15 +11,19 @@ def qrm_update(Q, rm, s, a, s_next, labels, alpha, gamma):
             continue
         u_next, reward = rm.next_state(u_prime, labels)
         q_update(
-            Q, s, u_prime, a, reward, s_next, u_next,
+            Q, (s, u_prime), a, reward, (s_next, u_next),
             rm.is_terminal(u_next), alpha, gamma,
         )
 
 
 def train_qrm(env, rm, start, n_interactions, eval_every=500,
               eval_episodes=10, max_steps=100, gamma=0.99,
-              alpha=0.1, epsilon=0.1, seed=0, q_init=0.0):
+              alpha=0.1, epsilon=0.1, seed=0, q_init=0.0,
+              eval_max_steps=None):
     # 评估使用独立随机数生成器，不改变训练轨迹。
+    # 可单独限制评估步数；未指定时保持原来的训练/评估共用上限。
+    if eval_max_steps is None:
+        eval_max_steps = max_steps
     train_rng = random.Random(seed)
     eval_rng = random.Random(seed)
     Q = init_Q(env, rm, q_init)
@@ -34,7 +38,7 @@ def train_qrm(env, rm, start, n_interactions, eval_every=500,
             and episode_steps < max_steps
             and not rm.is_terminal(u)
         ):
-            a = select_action(Q, s, u, epsilon, env.actions, train_rng)
+            a = select_action(Q, (s, u), epsilon, env.actions, train_rng)
             # 环境只转移一次，同一条经验用于更新所有 RM 状态。
             s_next = env.next_position(s, a)
             labels = env.label(s_next)
@@ -45,7 +49,7 @@ def train_qrm(env, rm, start, n_interactions, eval_every=500,
             episode_steps += 1
             if interaction % eval_every == 0:
                 stats = evaluate(
-                    Q, env, rm, start, eval_episodes, max_steps, gamma, eval_rng
+                    Q, env, rm, start, eval_episodes, eval_max_steps, gamma, eval_rng
                 )
                 stats["step"] = interaction
                 log.append(stats)

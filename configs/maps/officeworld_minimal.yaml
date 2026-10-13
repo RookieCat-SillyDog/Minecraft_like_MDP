@@ -1,5 +1,5 @@
 name: OfficeWorld Minimal
-description: RM 最小复现用 5x5 确定性四邻接网格；s 仅为位置，landmarks 即命题-坐标映射。
+description: 5x5 网格；s 仅为位置，landmarks 即命题-坐标映射。
 rows: 5
 cols: 5
 start: [2, 2]

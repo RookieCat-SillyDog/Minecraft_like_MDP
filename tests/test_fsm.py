@@ -1,27 +1,29 @@
-"""Task FSM 状态转移测试。"""
+"""Demo 任务配置的 Reward Machine 转移测试。"""
 
 import unittest
 
 from src.config import load_task_config
-from src.task_fsm.fsm import TaskFSM
+from src.task_fsm.reward_machine import RewardMachine
 
 
-class TestTaskFSM(unittest.TestCase):
+class TestTaskRewardMachine(unittest.TestCase):
 
     def make(self, condition):
-        return TaskFSM(load_task_config(condition))
+        rm = RewardMachine(load_task_config(condition))
+        return rm, rm.reset()
 
     def test_condition_a_sequence(self):
-        fsm = self.make("A")
-        for event, expected in [
-            ("GET_KEY", "u1"),
-            ("OPEN_DOOR", "u2"),
-            ("GET_BEEF", "u3"),
-            ("COOK", "u4"),
-            ("REACH_GOAL", "u5"),
+        rm, u = self.make("A")
+        for event, expected_u, expected_reward in [
+            ("GET_KEY", "u1", 0),
+            ("OPEN_DOOR", "u2", 0),
+            ("GET_BEEF", "u3", 0),
+            ("COOK", "u4", 0),
+            ("REACH_GOAL", "u5", 1),
         ]:
-            self.assertEqual(fsm.step({event}), expected)
-        self.assertTrue(fsm.is_terminal)
+            u, reward = rm.next_state(u, {event})
+            self.assertEqual((u, reward), (expected_u, expected_reward))
+        self.assertTrue(rm.is_terminal(u))
 
     def test_condition_b_routes(self):
         # 条件 B 接受“钥匙路线”和“烹饪路线”中的任意一条。
@@ -31,34 +33,35 @@ class TestTaskFSM(unittest.TestCase):
         ]
         for events in routes:
             with self.subTest(events=events):
-                fsm = self.make("B")
+                rm, u = self.make("B")
                 for event in events:
-                    fsm.step({event})
-                self.assertEqual(fsm.current_state, "v5")
-                self.assertTrue(fsm.is_terminal)
+                    u, reward = rm.next_state(u, {event})
+                self.assertEqual((u, reward), ("v5", 1))
+                self.assertTrue(rm.is_terminal(u))
 
     def test_unmatched_events_are_ignored(self):
-        fsm = self.make("A")
+        rm, u = self.make("A")
         for events in [{"GET_BEEF"}, set(), {"NOT_AN_EVENT"}]:
-            self.assertEqual(fsm.step(events), "u0")
+            self.assertEqual(rm.next_state(u, events), ("u0", 0))
 
     def test_condition_b_stays_on_chosen_route(self):
-        fsm = self.make("B")
-        fsm.step({"GET_KEY"})
+        rm, u = self.make("B")
+        u, _ = rm.next_state(u, {"GET_KEY"})
         # 选定钥匙路线后，另一条路线的事件不应改变状态。
-        fsm.step({"GET_BEEF"})
-        self.assertEqual(fsm.current_state, "v1")
-        fsm.step({"OPEN_DOOR"})
-        fsm.step({"COOK"})
-        self.assertEqual(fsm.current_state, "v2")
+        u, _ = rm.next_state(u, {"GET_BEEF"})
+        self.assertEqual(u, "v1")
+        u, _ = rm.next_state(u, {"OPEN_DOOR"})
+        u, _ = rm.next_state(u, {"COOK"})
+        self.assertEqual(u, "v2")
 
     def test_reset_and_terminal_absorption(self):
-        fsm = self.make("A")
+        rm, u = self.make("A")
         for event in ["GET_KEY", "OPEN_DOOR", "GET_BEEF", "COOK", "REACH_GOAL"]:
-            fsm.step({event})
+            u, _ = rm.next_state(u, {event})
         # 终止状态吸收后续事件。
-        fsm.step({"GET_KEY"})
-        self.assertEqual(fsm.current_state, "u5")
+        u, reward = rm.next_state(u, {"GET_KEY"})
+        self.assertEqual((u, reward), ("u5", 0))
 
-        self.assertEqual(fsm.reset(), "u0")
-        self.assertFalse(fsm.is_terminal)
+        u = rm.reset()
+        self.assertEqual(u, "u0")
+        self.assertFalse(rm.is_terminal(u))

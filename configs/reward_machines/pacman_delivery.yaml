@@ -1,0 +1,275 @@
+name: Pacman Delivery free
+initial_state: v000
+terminal_states:
+- v222
+transitions:
+- from: v000
+  match:
+  - p_a
+  to: v100
+  reward: 0
+- from: v000
+  match:
+  - p_b
+  to: v010
+  reward: 0
+- from: v000
+  match:
+  - p_c
+  to: v001
+  reward: 0
+- from: v001
+  match:
+  - p_a
+  to: v101
+  reward: 0
+- from: v001
+  match:
+  - p_b
+  to: v011
+  reward: 0
+- from: v001
+  match:
+  - d_c
+  to: v002
+  reward: 0
+- from: v002
+  match:
+  - p_a
+  to: v102
+  reward: 0
+- from: v002
+  match:
+  - p_b
+  to: v012
+  reward: 0
+- from: v010
+  match:
+  - p_a
+  to: v110
+  reward: 0
+- from: v010
+  match:
+  - d_b
+  to: v020
+  reward: 0
+- from: v010
+  match:
+  - p_c
+  to: v011
+  reward: 0
+- from: v011
+  match:
+  - p_a
+  to: v111
+  reward: 0
+- from: v011
+  match:
+  - d_b
+  to: v021
+  reward: 0
+- from: v011
+  match:
+  - d_c
+  to: v012
+  reward: 0
+- from: v012
+  match:
+  - p_a
+  to: v112
+  reward: 0
+- from: v012
+  match:
+  - d_b
+  to: v022
+  reward: 0
+- from: v020
+  match:
+  - p_a
+  to: v120
+  reward: 0
+- from: v020
+  match:
+  - p_c
+  to: v021
+  reward: 0
+- from: v021
+  match:
+  - p_a
+  to: v121
+  reward: 0
+- from: v021
+  match:
+  - d_c
+  to: v022
+  reward: 0
+- from: v022
+  match:
+  - p_a
+  to: v122
+  reward: 0
+- from: v100
+  match:
+  - d_a
+  to: v200
+  reward: 0
+- from: v100
+  match:
+  - p_b
+  to: v110
+  reward: 0
+- from: v100
+  match:
+  - p_c
+  to: v101
+  reward: 0
+- from: v101
+  match:
+  - d_a
+  to: v201
+  reward: 0
+- from: v101
+  match:
+  - p_b
+  to: v111
+  reward: 0
+- from: v101
+  match:
+  - d_c
+  to: v102
+  reward: 0
+- from: v102
+  match:
+  - d_a
+  to: v202
+  reward: 0
+- from: v102
+  match:
+  - p_b
+  to: v112
+  reward: 0
+- from: v110
+  match:
+  - d_a
+  to: v210
+  reward: 0
+- from: v110
+  match:
+  - d_b
+  to: v120
+  reward: 0
+- from: v110
+  match:
+  - p_c
+  to: v111
+  reward: 0
+- from: v111
+  match:
+  - d_a
+  to: v211
+  reward: 0
+- from: v111
+  match:
+  - d_b
+  to: v121
+  reward: 0
+- from: v111
+  match:
+  - d_c
+  to: v112
+  reward: 0
+- from: v112
+  match:
+  - d_a
+  to: v212
+  reward: 0
+- from: v112
+  match:
+  - d_b
+  to: v122
+  reward: 0
+- from: v120
+  match:
+  - d_a
+  to: v220
+  reward: 0
+- from: v120
+  match:
+  - p_c
+  to: v121
+  reward: 0
+- from: v121
+  match:
+  - d_a
+  to: v221
+  reward: 0
+- from: v121
+  match:
+  - d_c
+  to: v122
+  reward: 0
+- from: v122
+  match:
+  - d_a
+  to: v222
+  reward: 1
+- from: v200
+  match:
+  - p_b
+  to: v210
+  reward: 0
+- from: v200
+  match:
+  - p_c
+  to: v201
+  reward: 0
+- from: v201
+  match:
+  - p_b
+  to: v211
+  reward: 0
+- from: v201
+  match:
+  - d_c
+  to: v202
+  reward: 0
+- from: v202
+  match:
+  - p_b
+  to: v212
+  reward: 0
+- from: v210
+  match:
+  - d_b
+  to: v220
+  reward: 0
+- from: v210
+  match:
+  - p_c
+  to: v211
+  reward: 0
+- from: v211
+  match:
+  - d_b
+  to: v221
+  reward: 0
+- from: v211
+  match:
+  - d_c
+  to: v212
+  reward: 0
+- from: v212
+  match:
+  - d_b
+  to: v222
+  reward: 1
+- from: v220
+  match:
+  - p_c
+  to: v221
+  reward: 0
+- from: v221
+  match:
+  - d_c
+  to: v222
+  reward: 1

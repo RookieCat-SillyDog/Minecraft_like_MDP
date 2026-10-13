@@ -1,11 +1,22 @@
-# Navigation × Task-FSM / Reward Machine
+# Navigation × Reward Machine
 
 当前仓库包含两部分工作：
 
-- `src/`：与界面无关的环境、事件标注和任务状态机核心；
+- `src/`：与界面无关的环境、事件标注、Reward Machine 和学习算法；
 - `task_fsm_demo/`：使用共享核心的 PsychoPy 双空间演示。
 
-旧的 Week 1–3 MDP 练习保存在 `archive/old_mdp_week1_3/`。
+旧的 Week 1–3 MDP 练习、原层级 Q-learning 算法和 Delivery BFS 奖励基线只保存在本地 `archive/`，不再随仓库提供。
+
+本地历史图和数据按任务整理，以下分类产物不随本次代码提交提供：
+
+| 内容 | 数据目录 | 图表目录 |
+| --- | --- | --- |
+| Q-learning / QRM 基础示例 | `experiments/results/qrm_examples/` | `figures/qrm_examples/` |
+| Book 原层级 Q-learning 历史结果 | `experiments/results/book/` | `figures/book/` |
+| Delivery 高层步数折扣前基线 | `experiments/results/delivery/` | `figures/delivery/` |
+| Delivery 最新高层步数折扣结果 | `experiments/results/` 中的 `*_duration_discount*` | `figures/` 中的同前缀曲线；过程图在 `figures/delivery/` |
+
+脚本输出路径暂未修改，重跑仍写入 `experiments/results/` 和 `figures/`，不会自动分类。Delivery 的地图、实验条件和本地历史结果说明见 [任务文档](docs/pacman-delivery-task-review.md)。
 
 ## 运行 Demo
 
@@ -65,6 +76,40 @@ cd notebooks
 python -m nbconvert --to notebook --execute --inplace 01_reward_machine.ipynb
 ```
 
+该命令重新执行笔记本，包括基础 Q-learning/QRM 实验，并生成新的结果与图表。
+
+## Book 表格型 h-DQN 实验
+
+```powershell
+python -B -u -m experiments.run_hrm_craftworld_book
+```
+
+当前入口比较 Q-learning、QRM 和表格型 h-DQN。沿用种子 0–4、每种子每方法 50k 交互预算、每 1k 步评估 20 回合，回合上限为 200。h-DQN 不做独立预训练，从第一步开始联合训练；低层为四个地标目标生成经验，两层使用现有 `tabular_hdqn.py` 的回放更新。
+
+新 CSV 为 `experiments/results/hrm_craftworld_book_tabular_hdqn_learning_curves.csv`，图表为 `figures/hrm_craftworld_book_tabular_hdqn_learning_curve.{png,svg}`。原 `experiments/results/book/` 和 `figures/book/` 中的结果仍属于旧层级 Q-learning，不能当作新版 h-DQN 结果。新版完整 50k 实验尚未运行。
+
+## Delivery h-DQN 实验
+
+在仓库根目录运行表格型 h-DQN/QRM 对照：
+
+```powershell
+python -B -u -m experiments.run_pacman_delivery_hdqn_vs_qrm
+```
+
+共享的六目标与二值奖励任务接口在 `src/tasks/pacman_delivery.py`。表格主实验的训练和完整任务评估均从固定起点 `(6, 12)` 开始。默认保存五列CSV（算法、种子、训练步数、成功率、平均基础步数）、两张曲线、地图/RM/数值参数和最终 `_models.pkl`；每种方法完成后立即写入CSV。
+
+主实验不做单目标导航检查，也不保存逐步过程。`evaluate_low_goals` 已移到路线诊断模块，仅供单独诊断和历史脚本调用；它检查起点及其他地标的导航，不改变训练起点。已有历史CSV及诊断结果保持原样。
+
+逐步路线记录使用独立命令。先运行上述表格主实验生成 `_models.pkl`，再从最终模型记录路线；路线命令本身不训练：
+
+```powershell
+$deliveryPrefix = 'pacman_delivery_hdqn_vs_qrm_seed5_200k_all_goals_navigation_bootstrap_pretrain1000_qrm_train1000_duration_discount'
+python -B -m experiments.record_pacman_delivery_routes "experiments/results/${deliveryPrefix}_models.pkl"
+```
+
+路线JSON保存在模型所在目录，沿用同前缀 `_routes.json` 格式。此入口读取新的双方法 `_models.pkl`，不读取旧单方法 `_checkpoint.pkl`。训练和图表输出目录保持原设置。
+
+本地已有的 Delivery 路径/目标时间线和高层决策图保存在 `figures/delivery/`，Book 过程图保存在 `figures/book/`。这些过程图、绘图脚本和 Book 模型不随本次提交提供。线性低层算法、实验入口及测试也暂留本地，不属于当前仓库入口。
 
 ## 当前结构
 
@@ -72,23 +117,30 @@ python -m nbconvert --to notebook --execute --inplace 01_reward_machine.ipynb
 src/
 ├── config.py
 ├── envs/{minecraft_grid,officeworld}.py
+├── tasks/pacman_delivery.py
 ├── task_fsm/{fsm,labeling,reward_machine}.py
-└── algorithms/{product_mdp,value_iteration,q_learning,qrm}.py
+└── algorithms/
+    ├── {product_mdp,value_iteration,q_learning,qrm}.py
+    └── tabular_hdqn.py
 
 configs/
-├── maps/{map_01,officeworld_minimal}.yaml
+├── maps/{map_01,officeworld_minimal,hrm_craftworld_book,pacman_delivery}.yaml
 ├── tasks/{task_01,task_02}.yaml
-└── reward_machines/{coffee_office,visit_abcd}.yaml
+└── reward_machines/{coffee_office,visit_abcd,hrm_craftworld_book,pacman_delivery}.yaml
 
 tests/   test_gridworld, test_event_detector, test_fsm, test_routes,
          test_reward_machine, test_officeworld, test_value_iteration,
-         test_q_learning, test_qrm
+         test_q_learning, test_qrm, test_book_task,
+         test_tabular_hdqn
 
 experiments/make_policy_figure.py    重建策略对比图
 experiments/make_learning_curves.py  重建学习曲线与逐种子 CSV
+experiments/run_hrm_craftworld_book.py    Book 表格 h-DQN 对照
+experiments/run_pacman_delivery_hdqn_vs_qrm.py   表格 h-DQN/QRM 对照
+experiments/record_pacman_delivery_routes.py    从最终模型记录路线
 notebooks/01_reward_machine.ipynb    RM 复现笔记本
-figures/policy_comparison.{svg,png}   状态价值热力图与最优策略对比
-figures/learning_curves_*.{svg,png}   Q-learning 与 QRM 学习曲线
+experiments/results/  重跑时生成的数据与模型
+figures/              重跑时生成的图表
 notes/paper_01_reward_machine.md      实验定义与验收
 
 task_fsm_demo/   PsychoPy 演示（依赖 week4-demo 环境）

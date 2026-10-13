@@ -26,7 +26,8 @@ class TestQLearning(unittest.TestCase):
         self.Q[((4, 4), "u2")] = {a: 9.9 for a in self.env.actions}
         self.Q[((4, 3), "u1")]["R"] = 0.5
         q_update(
-            self.Q, (4, 3), "u1", "R", 1.0, (4, 4), "u2", True, 0.1, 0.99
+            self.Q, ((4, 3), "u1"), "R", 1.0, ((4, 4), "u2"),
+            True, 0.1, 0.99,
         )
         self.assertAlmostEqual(self.Q[((4, 3), "u1")]["R"], 0.55)
 
@@ -34,7 +35,8 @@ class TestQLearning(unittest.TestCase):
         self.Q[((4, 2), "u1")] = {"U": 0.1, "D": 0.2, "L": 0.3, "R": 0.4}
         self.Q[((3, 2), "u0")]["D"] = 0.1
         q_update(
-            self.Q, (3, 2), "u0", "D", 0.0, (4, 2), "u1", False, 0.1, 0.99
+            self.Q, ((3, 2), "u0"), "D", 0.0, ((4, 2), "u1"),
+            False, 0.1, 0.99,
         )
         self.assertAlmostEqual(self.Q[((3, 2), "u0")]["D"], 0.1296)
 
@@ -44,7 +46,7 @@ class TestQLearning(unittest.TestCase):
         for _ in range(20):
             self.assertEqual(
                 select_action(
-                    self.Q, (2, 2), "u0", 0.0, self.env.actions, rng
+                    self.Q, ((2, 2), "u0"), 0.0, self.env.actions, rng
                 ),
                 "D",
             )
@@ -52,7 +54,7 @@ class TestQLearning(unittest.TestCase):
         self.Q[((2, 2), "u0")] = {"U": 0.5, "D": 0.5, "L": 0.0, "R": 0.0}
         # 并列最优动作应随机打破平局，不能固定偏向动作列表首项。
         selected = {
-            select_action(self.Q, (2, 2), "u0", 0.0, self.env.actions, rng)
+            select_action(self.Q, ((2, 2), "u0"), 0.0, self.env.actions, rng)
             for _ in range(100)
         }
         self.assertEqual(selected, {"U", "D"})
