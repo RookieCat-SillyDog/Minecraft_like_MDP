@@ -10,6 +10,9 @@ tmp/
 # 本地旧代码与练习归档
 /archive/
 
+# 实验结果仅保留在本地
+/experiments/results/
+
 # 虚拟环境
 .venv/
 venv/

@@ -31,7 +31,7 @@ configs/reward_machines/pacman_delivery.yaml
 
 ## 实验条件与入口
 
-以下命令均在仓库根目录执行。当前仓库提供表格型 h-DQN/QRM 对照；旧 BFS 奖励基线已转为本地归档，线性低层实验暂留本地。本地新增的历史结果、模型和图表不属于本次代码提交。各条件共享地图和 RM，但低层获得的信息不同，不能把它们当成同一条件的结果。
+以下命令均在仓库根目录执行。当前仓库提供表格型 h-DQN/QRM 对照；旧 BFS 奖励基线已转为本地归档，线性低层实验暂留本地。现存 `figures/` 图表纳入仓库；`experiments/results/` 全目录由 `.gitignore` 排除，CSV、JSON和模型仅保留在本地。各条件共享地图和 RM，但低层获得的信息不同，不能把它们当成同一条件的结果。
 
 | 实验 | 入口 | 低层奖励与信息 | 高层目标 |
 | --- | --- | --- | --- |
@@ -43,7 +43,7 @@ configs/reward_machines/pacman_delivery.yaml
 
 原 `experiments/run_pacman_delivery.py` 及其层级算法、训练模块已移入本地 `archive/`，不再作为仓库入口。历史低层使用 BFS 距离变化、每步 `-0.01` 和到达奖励 `1`，高层目标由 RM 出边限制。
 
-本地已保存结果位于 `experiments/results/delivery/baselines/pacman_delivery_hq_learning.csv`。种子 5–9，每种子 5 万步预训练＋20 万步联合训练，最终均成功、平均评估步数均为 92。这些数据保留作历史参照，不属于当前二值奖励的 h-DQN 实验。
+历史记录为种子5–9，每种子5万步预训练＋20万步联合训练，最终均成功、平均评估步数均为92。该实验的CSV和图表已在2026-10-13第一轮清理中删除，这里只保留历史条件说明，不再提供原始结果索引，也不将其作为当前二值奖励h-DQN的结果。
 
 ### 表格型 h-DQN / QRM 对照
 
@@ -67,6 +67,10 @@ python -B -u -m experiments.run_pacman_delivery_hdqn_vs_qrm
 | 高层按基础步数折扣 | `experiments/results/` 中的 `*_duration_discount.csv` | 1.0 / 92 | 沿用旧结果作参照 |
 
 最新保存的步数折扣实验只重新训练了 h-DQN，CSV 有 201 个评估点；设置中的 `qrm_reference_only=true` 表明 QRM 没有在该次运行中重训。当前主入口则会训练两种方法，并保存双方法模型。不能把历史单方法 `_checkpoint.pkl` 当成新入口生成的 `_models.pkl`。
+
+当前保留步数折扣版CSV、设置、路线、最终导航CSV和模型，以及旧200k基线的CSV、设置、路线。旧基线的最终导航CSV与步数折扣版逐字节相同，已删除旧副本；旧普通学习曲线也已删除。最新曲线仍保留，因为其中的QRM参照来自旧200k CSV，所以该基线CSV没有删除。最终100k低层诊断的汇总、分起点CSV和设置，以及 `experiments/results/archive/delivery/pacman_low_pb_random_start_diagnosis.json` 也保留。
+
+`figures/delivery/` 保留地图、RM、VI最优价值/策略图、最新92步路径/目标时间线；最新成功率和步数曲线仍在 `figures/` 根目录。每张保留图都有PNG和SVG。高层决策、旧路线对比、局部绕路的PNG/SVG及专用路线诊断JSON已按用户要求删除；这三类图没有独立CSV，共享的学习曲线、模型和轨迹仍保留。旧500k/1M及BFS基线图表已删除。
 
 需要逐步路线时，先运行主实验生成模型，再执行：
 
